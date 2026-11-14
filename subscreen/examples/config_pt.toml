@@ -1,0 +1,244 @@
+# subscreen - monitor em portugues: CPU/GPU (uso e temperatura), RAM, rede, data e hora.
+# Rode:  python -m subscreen run -c examples/config_pt.toml
+# Teste sem a tela:  python -m subscreen run -c examples/config_pt.toml --simulator --http 8080
+#
+# Temperatura da CPU (e GPU que nao seja NVIDIA) precisa do LibreHardwareMonitor, veja o README.
+# Sem ele, o que nao estiver disponivel aparece como "--".
+
+[device]
+type = "rev_a"
+port = "auto"
+orientation = "reverse_landscape"
+brightness = 100
+fps = 20
+
+[display]
+background = "#0b0f1a"
+decimal = ","                 # 11,4 GB em vez de 11.4 GB
+
+[sensors]
+nvidia_smi = true             # GPU NVIDIA: uso/temperatura via nvidia-smi (vem com o driver)
+lhm = true                    # LibreHardwareMonitor: temperatura da CPU e GPU AMD/Intel
+# lhm_url = "http://127.0.0.1:8085/data.json"
+
+[[page]]
+# ---- hora e data
+
+[[page.widget]]
+type = "clock"
+x = 16
+y = 6
+w = 210
+h = 62
+format = "%H:%M"
+size = 56
+color = "#ffffff"
+
+[[page.widget]]
+type = "text"
+x = 240
+y = 12
+w = 224
+h = 24
+text = "{dia_semana_cap}"
+size = 20
+color = "#e6e9ef"
+align = "right"
+
+[[page.widget]]
+type = "text"
+x = 240
+y = 38
+w = 224
+h = 22
+text = "{dia} de {mes} de {ano}"
+size = 17
+color = "#8b95a7"
+align = "right"
+
+[[page.widget]]
+type = "rect"
+x = 16
+y = 74
+w = 448
+h = 1
+fill = "#222a3a"
+
+# ---- CPU
+
+[[page.widget]]
+type = "text"
+x = 16
+y = 84
+w = 90
+h = 20
+text = "CPU"
+size = 15
+color = "#8b95a7"
+
+[[page.widget]]
+type = "text"
+x = 106
+y = 83
+w = 122
+h = 22
+text = "{cpu_temp:.0f} °C"
+size = 18
+color = "#f2b84b"
+align = "right"
+interval = 2
+
+[[page.widget]]
+type = "text"
+x = 16
+y = 106
+w = 212
+h = 46
+text = "{cpu:.0f}%"
+size = 40
+color = "#ffffff"
+interval = 2
+
+[[page.widget]]
+type = "bar"
+x = 16
+y = 158
+w = 212
+h = 10
+metric = "cpu"
+color = "#4dabf7"
+warn_at = 90
+interval = 2
+
+# ---- GPU
+
+[[page.widget]]
+type = "text"
+x = 252
+y = 84
+w = 90
+h = 20
+text = "GPU"
+size = 15
+color = "#8b95a7"
+
+[[page.widget]]
+type = "text"
+x = 342
+y = 83
+w = 122
+h = 22
+text = "{gpu_temp:.0f} °C"
+size = 18
+color = "#f2b84b"
+align = "right"
+interval = 2
+
+[[page.widget]]
+type = "text"
+x = 252
+y = 106
+w = 212
+h = 46
+text = "{gpu:.0f}%"
+size = 40
+color = "#ffffff"
+interval = 2
+
+[[page.widget]]
+type = "bar"
+x = 252
+y = 158
+w = 212
+h = 10
+metric = "gpu"
+color = "#35c46d"
+warn_at = 90
+interval = 2
+
+# ---- RAM
+
+[[page.widget]]
+type = "text"
+x = 16
+y = 182
+w = 100
+h = 20
+text = "RAM"
+size = 15
+color = "#8b95a7"
+
+[[page.widget]]
+type = "text"
+x = 116
+y = 181
+w = 348
+h = 22
+text = "{ram_used_gb:.1f} / {ram_total_gb:.0f} GB  ({ram:.0f}%)"
+size = 16
+color = "#ffffff"
+align = "right"
+interval = 2
+
+[[page.widget]]
+type = "bar"
+x = 16
+y = 206
+w = 448
+h = 10
+metric = "ram"
+color = "#b197fc"
+warn_at = 90
+interval = 2
+
+[[page.widget]]
+type = "rect"
+x = 16
+y = 228
+w = 448
+h = 1
+fill = "#222a3a"
+
+# ---- rede
+
+[[page.widget]]
+type = "text"
+x = 16
+y = 238
+w = 212
+h = 20
+text = "↓ Download"
+size = 15
+color = "#8b95a7"
+
+[[page.widget]]
+type = "text"
+x = 252
+y = 238
+w = 212
+h = 20
+text = "↑ Upload"
+size = 15
+color = "#8b95a7"
+
+[[page.widget]]
+type = "text"
+x = 16
+y = 260
+w = 212
+h = 36
+text = "{net_down_h}"
+size = 28
+color = "#ffffff"
+interval = 2
+
+[[page.widget]]
+type = "text"
+x = 252
+y = 260
+w = 212
+h = 36
+text = "{net_up_h}"
+size = 28
+color = "#ffffff"
+interval = 2

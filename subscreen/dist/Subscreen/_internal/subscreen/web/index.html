@@ -1,0 +1,690 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Subscreen</title>
+<style>
+:root{
+  --bg:#0e1117; --panel:#151a23; --panel2:#1b2230; --line:#283043; --line2:#344058;
+  --text:#e8ecf3; --muted:#8b95a7; --accent:#4dabf7; --accent-d:#2f8bd6; --ok:#35c46d; --warn:#f2b84b; --bad:#e5484d;
+  --radius:10px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 "Segoe UI",system-ui,-apple-system,Roboto,sans-serif;
+  display:flex;flex-direction:column;min-height:100vh}
+button,input,select{font:inherit;color:inherit}
+header{display:flex;align-items:center;gap:16px;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:16px;letter-spacing:.2px}
+.brand .logo{width:26px;height:18px;border:2px solid var(--accent);border-radius:4px;position:relative}
+.brand .logo::after{content:"";position:absolute;inset:3px;background:linear-gradient(135deg,var(--accent),#35c46d);border-radius:1px;opacity:.85}
+.spacer{flex:1}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:5px 12px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);font-size:13px;cursor:default}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--warn)}
+.pill.ok .dot{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.pill.bad .dot{background:var(--bad)}
+#savestate{color:var(--muted);font-size:13px;min-width:90px;text-align:right}
+main{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:0;min-height:0}
+@media (max-width:1000px){main{grid-template-columns:1fr}}
+#left{padding:18px 22px;display:flex;flex-direction:column;gap:14px;min-width:0;overflow:auto}
+#right{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+/* pages */
+#pagebar{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chip{padding:6px 14px;border-radius:8px;border:1px solid var(--line);background:var(--panel);cursor:pointer;color:var(--muted);user-select:none}
+.chip:hover{border-color:var(--line2);color:var(--text)}
+.chip.on{background:var(--panel2);border-color:var(--accent);color:var(--text)}
+.chip.add{border-style:dashed}
+/* stage */
+#stagewrap{display:flex;justify-content:center;padding:26px 10px;background:
+  radial-gradient(circle at 50% 0%,#18202e 0%,transparent 70%),var(--panel);border:1px solid var(--line);border-radius:var(--radius)}
+#stage{position:relative;background:#000;border-radius:6px;
+  box-shadow:0 0 0 7px #1a1f2a,0 0 0 8px #323b4f,0 24px 60px rgba(0,0,0,.55);touch-action:none}
+#live{position:absolute;inset:0;width:100%;height:100%;display:block;border-radius:6px;image-rendering:auto}
+#grid{position:absolute;inset:0;pointer-events:none;border-radius:6px;display:none;
+  background-image:linear-gradient(to right,rgba(255,255,255,.08) 1px,transparent 1px),linear-gradient(to bottom,rgba(255,255,255,.08) 1px,transparent 1px)}
+#slots{position:absolute;inset:0}
+.slot{position:absolute;border:1px dashed rgba(255,255,255,.28);border-radius:3px;cursor:grab;outline:none}
+.slot:hover{border-color:var(--accent);background:rgba(77,171,247,.09)}
+.slot:focus-visible{border-color:#fff}
+.slot.sel{border:2px solid var(--accent);background:rgba(77,171,247,.12);cursor:grabbing}
+.slot.hid{border-style:dotted;opacity:.55}
+.layers{display:flex;flex-direction:column;gap:4px;max-height:230px;overflow:auto;margin-bottom:8px}
+.lrow{display:flex;align-items:center;gap:4px}
+.lrow .pick{flex:1;min-width:0;text-align:left;display:flex;flex-direction:column;gap:1px;padding:6px 9px;border-radius:7px;border:1px solid var(--line);background:var(--panel2,#161b26);color:inherit;cursor:pointer;font:inherit}
+.lrow .pick.on{border-color:var(--accent);background:rgba(77,171,247,.14)}
+.lrow .pick small{color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lrow .pick.off{opacity:.55}
+.lrow .mini{padding:4px 7px;min-width:28px}
+.badge{display:inline-block;margin-left:6px;padding:0 6px;border-radius:9px;background:rgba(77,171,247,.25);font-size:11px}
+.slot .tag{position:absolute;left:3px;top:3px;font-size:10px;line-height:1;padding:3px 6px;border-radius:4px;
+  background:rgba(14,17,23,.88);color:#cfe3ff;pointer-events:none;opacity:0;transition:opacity .12s;white-space:nowrap}
+.slot:hover .tag,.slot.sel .tag{opacity:1}
+.slot .rh{position:absolute;right:-2px;bottom:-2px;width:16px;height:16px;cursor:nwse-resize;background:var(--accent);
+  border-radius:4px 0 4px 0;display:none}
+.slot.sel .rh{display:block;z-index:6}
+#empty{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;color:#9fb0c8;padding:30px;pointer-events:none;
+  font-size:14px}
+#stagetools{display:flex;gap:18px;flex-wrap:wrap;align-items:center;color:var(--muted);font-size:13px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+/* page settings */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px}
+.card h3{margin:0 0 10px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+/* tabs */
+#tabs{display:flex;border-bottom:1px solid var(--line)}
+#tabs button{flex:1;padding:12px 6px;background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);cursor:pointer;font-weight:600}
+#tabs button:hover{color:var(--text)}
+#tabs button.on{color:var(--text);border-bottom-color:var(--accent)}
+#panel{flex:1;overflow:auto;padding:16px 18px 30px;min-height:0}
+.group{margin-bottom:18px}
+.group>h4{margin:0 0 8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.field>label,.field>.lab{color:var(--muted);font-size:12.5px}
+input[type=text],input[type=number],select{width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);outline:none}
+input[type=text]:focus,input[type=number]:focus,select:focus{border-color:var(--accent)}
+input[type=color]{width:42px;height:34px;padding:2px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);cursor:pointer}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.inline{display:flex;gap:8px;align-items:center}
+.inline>*{flex:0 0 auto}.inline>.grow{flex:1 1 auto}
+.num4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.num4 .field{margin:0}
+.sw{display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer;color:var(--text)}
+.sw input{appearance:none;width:36px;height:20px;border-radius:999px;background:#313b50;position:relative;cursor:pointer;transition:background .15s;flex:0 0 auto;margin:0}
+.sw input::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .15s}
+.sw input:checked{background:var(--accent-d)}
+.sw input:checked::after{transform:translateX(16px)}
+.sw input:disabled{opacity:.5;cursor:not-allowed}
+.btn{padding:7px 14px;border-radius:8px;border:1px solid var(--line2);background:var(--panel2);cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent-d);border-color:var(--accent-d);color:#fff}
+.btn.danger{color:#ff8e93}.btn.danger:hover{border-color:var(--bad)}
+.btn.small{padding:4px 10px;font-size:12.5px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.palette{display:flex;flex-wrap:wrap;gap:6px}
+.palette .btn{font-size:13px}
+.hint{color:var(--muted);font-size:12.5px}
+.note{padding:10px 12px;border-radius:8px;background:var(--panel2);border:1px solid var(--line);color:var(--muted);font-size:13px;margin-bottom:12px}
+.note.warn{border-color:#6b5420;color:#e9cf92}
+.thumb{width:100%;height:96px;object-fit:cover;border-radius:8px;border:1px solid var(--line);background:#000;display:block}
+.kv{display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-variant-numeric:tabular-nums}
+.kv span:nth-child(odd){color:var(--muted)}
+.src{display:flex;align-items:center;gap:8px;font-size:13px;margin:2px 0}
+.src .dot{width:8px;height:8px}
+.src.ok .dot{background:var(--ok)}.src.bad .dot{background:var(--bad)}
+#toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:#222a3a;border:1px solid var(--line2);padding:10px 18px;
+  border-radius:10px;opacity:0;transition:all .25s;pointer-events:none;z-index:50;max-width:80vw}
+#toast.show{opacity:1;transform:translateX(-50%)}
+#toast.err{border-color:var(--bad);color:#ffb3b6}
+code{background:var(--panel2);padding:1px 6px;border-radius:5px;font-size:12.5px;word-break:break-all}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo"></span>Subscreen</div>
+  <div class="spacer"></div>
+  <div id="pill" class="pill" title=""><span class="dot"></span><span id="pilltext">Conectando…</span></div>
+  <div id="savestate"></div>
+</header>
+
+<main>
+  <section id="left">
+    <div id="pagebar"></div>
+    <div id="stagewrap">
+      <div id="stage" tabindex="-1">
+        <img id="live" alt="Pré-visualização da tela" draggable="false">
+        <div id="grid"></div>
+        <div id="slots"></div>
+        <div id="empty">Esta página está vazia.<br>Adicione módulos ao lado ou escolha um modelo abaixo.</div>
+      </div>
+    </div>
+    <div id="stagetools">
+      <label class="sw" style="margin:0"><input type="checkbox" id="showgrid"> Mostrar grade</label>
+      <span class="hint">Arraste para mover · puxe o canto azul para redimensionar · Alt+clique seleciona o de baixo · setas movem · Delete remove</span>
+    </div>
+    <div class="card" id="pagecfg"></div>
+  </section>
+
+  <aside id="right">
+    <div id="tabs" role="tablist">
+      <button data-tab="modulo" class="on" role="tab">Módulos</button>
+      <button data-tab="aparencia" role="tab">Aparência</button>
+      <button data-tab="tela" role="tab">Tela</button>
+      <button data-tab="sistema" role="tab">Sistema</button>
+    </div>
+    <div id="panel"></div>
+  </aside>
+</main>
+<div id="toast" role="status"></div>
+
+<script>
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (v === false || v == null) continue;
+    if (k === "class") e.className = v;
+    else if (k === "style") e.style.cssText = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else if (k in e && k !== "list") e[k] = v;
+    else e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of kids.flat()) { if (c == null || c === false) continue; e.append(c.nodeType ? c : document.createTextNode(c)); }
+  return e;
+}
+async function api(path, opts = {}) {
+  const r = await fetch(path, { ...opts, headers: { "X-Subscreen": "1", ...(opts.headers || {}) } });
+  let data = {}; try { data = await r.json(); } catch (_) {}
+  if (!r.ok) throw new Error(data.error || r.statusText);
+  return data;
+}
+const post = (p, body) => api(p, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+let toastTimer;
+function toast(msg, err) {
+  const t = $("#toast"); t.textContent = msg; t.className = "show" + (err ? " err" : "");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.className = "", err ? 5000 : 2200);
+}
+
+// ------------------------------------------------------------------ state
+const S = { layout: null, cat: null, status: {}, media: [], autostart: {}, home: "", sel: -1, page: 0, tab: "modulo", ports: null, sensors: null };
+let dragging = false;
+const page = () => S.layout.pages[S.page];
+const slot = () => (S.sel >= 0 ? page().slots[S.sel] : null);
+const mod = id => S.cat.modules.find(m => m.id === id);
+const CELL = () => S.cat.cell;
+const isPortrait = () => S.layout.device.orientation.includes("portrait");
+const gridSize = () => isPortrait() ? [8, 12] : [12, 8];
+const screenPx = () => { const [c, r] = gridSize(); return [c * CELL(), r * CELL()]; };
+
+// ------------------------------------------------------------------ saving
+let saveTimer = null, saving = false, dirty = false;
+function setSave(t) { $("#savestate").textContent = t; }
+function commit() { dirty = true; setSave("Salvando…"); clearTimeout(saveTimer); saveTimer = setTimeout(doSave, 250); }
+async function doSave() {
+  if (saving || dragging) { saveTimer = setTimeout(doSave, 150); return; }
+  saving = true; dirty = false;
+  try {
+    const r = await post("/api/layout", S.layout);
+    if (!dirty && JSON.stringify(r.layout) !== JSON.stringify(S.layout)) { S.layout = r.layout; clampSelection(); renderAll(); }
+    setSave(dirty ? "Salvando…" : "Salvo ✓");
+  } catch (e) { toast("Não foi possível salvar: " + e.message, true); setSave("Erro ao salvar"); }
+  finally { saving = false; }
+}
+function clampSelection() {
+  if (S.page >= S.layout.pages.length) S.page = S.layout.pages.length - 1;
+  if (S.sel >= page().slots.length) S.sel = -1;
+}
+
+// ------------------------------------------------------------------ pages bar + page settings
+function renderPages() {
+  const bar = $("#pagebar"); bar.replaceChildren();
+  S.layout.pages.forEach((p, i) => bar.append(h("div", {
+    class: "chip" + (i === S.page ? " on" : ""), role: "tab", title: "Duplo clique para renomear",
+    onclick: () => { S.page = i; S.sel = -1; renderAll(); },
+    ondblclick: () => { const n = prompt("Nome da página:", p.name); if (n && n.trim()) { p.name = n.trim().slice(0, 30); commit(); renderPages(); renderPageCfg(); } },
+  }, p.name)));
+  if (S.layout.pages.length < 8) bar.append(h("div", { class: "chip add", onclick: addPage }, "+ Página"));
+}
+function renderPageCfg() {
+  const box = $("#pagecfg"); box.replaceChildren();
+  const p = page(), multi = S.layout.pages.length > 1;
+  const tpl = h("select", {}, h("option", { value: "" }, "Aplicar modelo…"), S.cat.templates.map(([k, v]) => h("option", { value: k }, v)));
+  tpl.onchange = async () => {
+    if (!tpl.value) return;
+    if (p.slots.length && !confirm("Substituir os módulos desta página pelo modelo escolhido?")) { tpl.value = ""; return; }
+    try {
+      const r = await api("/api/template?name=" + tpl.value + "&orientation=" + S.layout.device.orientation);
+      p.slots = r.slots; S.sel = -1; commit(); renderAll();
+    } catch (e) { toast(e.message, true); }
+  };
+  box.append(
+    h("h3", {}, "Esta página"),
+    h("div", { class: "row" },
+      h("div", { class: "field grow", style: "margin:0;flex:1;min-width:160px" }, h("label", {}, "Nome"),
+        h("input", { type: "text", value: p.name, maxLength: 30, oninput: e => { p.name = e.target.value || "Página"; commit(); renderPages(); } })),
+      h("div", { class: "field", style: "margin:0;width:150px" }, h("label", {}, multi ? "Duração (segundos)" : "Duração (só 1 página)"),
+        h("input", { type: "number", min: 3, max: 300, value: p.duration, disabled: !multi || !S.layout.device.rotate, oninput: e => { p.duration = clamp(+e.target.value || 12, 3, 300); commit(); } })),
+      h("div", { class: "field", style: "margin:0;min-width:200px;flex:1" }, h("label", {}, "Modelo"), tpl)),
+    h("div", { class: "row", style: "margin-top:12px" },
+      h("button", { class: "btn small", onclick: dupPage }, "Duplicar página"),
+      h("button", { class: "btn small danger", disabled: !multi, onclick: delPage }, "Excluir página"),
+      multi ? h("label", { class: "sw", style: "margin:0" },
+        h("input", { type: "checkbox", id: "rotatesw", checked: !!S.layout.device.rotate, onchange: e => { S.layout.device.rotate = e.target.checked; commit(); renderPageCfg(); } }),
+        "Trocar de página automaticamente") : h("span", { class: "hint" }, "Crie mais páginas para alternar informações."),
+      multi && !S.layout.device.rotate ? h("span", { class: "hint" }, "Desligado: a tela fica sempre na primeira página (a que abre ao ligar).") : null));
+}
+function addPage() { S.layout.pages.push({ name: "Página " + (S.layout.pages.length + 1), duration: 12, slots: [] }); S.page = S.layout.pages.length - 1; S.sel = -1; commit(); renderAll(); }
+function dupPage() {
+  if (S.layout.pages.length >= 8) return toast("Máximo de 8 páginas.", true);
+  const c = JSON.parse(JSON.stringify(page())); c.name = (c.name + " (cópia)").slice(0, 30);
+  S.layout.pages.splice(S.page + 1, 0, c); S.page++; S.sel = -1; commit(); renderAll();
+}
+function delPage() {
+  if (S.layout.pages.length < 2 || !confirm("Excluir a página “" + page().name + "”?")) return;
+  S.layout.pages.splice(S.page, 1); S.page = Math.max(0, S.page - 1); S.sel = -1; commit(); renderAll();
+}
+
+// ------------------------------------------------------------------ stage (preview + editable slots)
+let scale = 1;
+function stageScale() {
+  const [W, H] = screenPx();
+  const avail = Math.max(260, $("#stagewrap").clientWidth - 40);
+  return Math.min(avail / W, 520 / H);
+}
+function placeSlot(el, s) {
+  const u = CELL() * scale;
+  el.style.left = s.col * u + "px"; el.style.top = s.row * u + "px";
+  el.style.width = s.w * u + "px"; el.style.height = s.h * u + "px";
+}
+function renderStage() {
+  const [W, H] = screenPx(); scale = stageScale();
+  const st = $("#stage"); st.style.width = W * scale + "px"; st.style.height = H * scale + "px";
+  const g = $("#grid"); g.style.backgroundSize = CELL() * scale + "px " + CELL() * scale + "px";
+  g.style.display = $("#showgrid").checked ? "block" : "none";
+  const box = $("#slots"); box.replaceChildren();
+  page().slots.forEach((s, i) => {
+    const m = mod(s.module);
+    const el = h("div", { class: "slot" + (i === S.sel ? " sel" : "") + (s.hidden ? " hid" : ""), tabindex: 0, role: "button", "aria-label": m ? m.label : s.module, "data-i": i },
+      h("span", { class: "tag" }, m ? m.label : s.module), h("span", { class: "rh" }));
+    placeSlot(el, s);
+    el.addEventListener("pointerdown", ev => startDrag(ev, i, el, ev.target.classList.contains("rh") ? "resize" : "move"));
+    el.addEventListener("focus", () => { if (S.sel !== i && !dragging) select(i); });
+    box.append(el);
+  });
+  $("#empty").style.display = page().slots.length ? "none" : "flex";
+}
+function select(i) {
+  S.sel = i;
+  document.querySelectorAll(".slot").forEach((e, k) => e.classList.toggle("sel", k === i));
+  if (S.tab === "modulo") renderPanel();
+}
+function startDrag(ev, i, el, mode) {
+  if (ev.button !== 0) return;
+  ev.preventDefault(); ev.stopPropagation();
+  if (ev.altKey) {  // Alt+click: pick the module underneath the current one
+    const under = document.elementsFromPoint(ev.clientX, ev.clientY).filter(e => e.classList && e.classList.contains("slot")).map(e => +e.dataset.i);
+    if (under.length > 1) { select(under[(Math.max(0, under.indexOf(S.sel)) + 1) % under.length]); return; }
+  }
+  if (S.sel !== i) select(i);
+  const s = page().slots[i], u = CELL() * scale, [cols, rows] = gridSize();
+  const start = { x: ev.clientX, y: ev.clientY, col: s.col, row: s.row, w: s.w, h: s.h };
+  dragging = true; el.setPointerCapture(ev.pointerId); let moved = false;
+  const move = e => {
+    const dc = Math.round((e.clientX - start.x) / u), dr = Math.round((e.clientY - start.y) / u);
+    if (mode === "move") { s.col = clamp(start.col + dc, 0, cols - s.w); s.row = clamp(start.row + dr, 0, rows - s.h); }
+    else { s.w = clamp(start.w + dc, 1, cols - s.col); s.h = clamp(start.h + dr, 1, rows - s.row); }
+    if (s.col !== start.col || s.row !== start.row || s.w !== start.w || s.h !== start.h) moved = true;
+    placeSlot(el, s); syncPosInputs();
+  };
+  const up = () => {
+    el.removeEventListener("pointermove", move); el.removeEventListener("pointerup", up); el.removeEventListener("pointercancel", up);
+    dragging = false; if (moved) commit();
+  };
+  el.addEventListener("pointermove", move); el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up);
+}
+$("#stage").addEventListener("pointerdown", e => { if (e.target.id === "stage" || e.target.id === "slots" || e.target.id === "live") { S.sel = -1; document.querySelectorAll(".slot.sel").forEach(x => x.classList.remove("sel")); if (S.tab === "modulo") renderPanel(); } });
+$("#showgrid").addEventListener("change", () => { $("#grid").style.display = $("#showgrid").checked ? "block" : "none"; try { localStorage.setItem("grid", $("#showgrid").checked ? "1" : "0"); } catch (_) {} });
+window.addEventListener("resize", () => { if (S.layout) renderStage(); });
+document.addEventListener("keydown", e => {
+  if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) || !S.layout) return;
+  const s = slot(); if (!s) return;
+  const [cols, rows] = gridSize(); let used = true;
+  if (e.key === "ArrowLeft") s.col = clamp(s.col - 1, 0, cols - s.w);
+  else if (e.key === "ArrowRight") s.col = clamp(s.col + 1, 0, cols - s.w);
+  else if (e.key === "ArrowUp") s.row = clamp(s.row - 1, 0, rows - s.h);
+  else if (e.key === "ArrowDown") s.row = clamp(s.row + 1, 0, rows - s.h);
+  else if (e.key === "Delete" || e.key === "Backspace") removeSlot();
+  else if (e.key === "Escape") { S.sel = -1; renderStage(); renderPanel(); }
+  else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") dupSlot();
+  else used = false;
+  if (used) { e.preventDefault(); if (S.sel >= 0) { const el = document.querySelector('.slot[data-i="' + S.sel + '"]'); if (el) placeSlot(el, s); syncPosInputs(); } commit(); }
+});
+
+// ------------------------------------------------------------------ slot operations
+function freeSpot(w, h) {
+  const [cols, rows] = gridSize(); const occ = new Set();
+  page().slots.forEach(s => { for (let c = s.col; c < s.col + s.w; c++) for (let r = s.row; r < s.row + s.h; r++) occ.add(c + "," + r); });
+  for (let r = 0; r + h <= rows; r++) for (let c = 0; c + w <= cols; c++) {
+    let ok = true; for (let i = 0; i < w && ok; i++) for (let j = 0; j < h; j++) if (occ.has((c + i) + "," + (r + j))) { ok = false; break; }
+    if (ok) return [c, r];
+  }
+  return [0, 0];
+}
+function addSlot(id) {
+  if (page().slots.length >= 32) return toast("Máximo de 32 módulos por página.", true);
+  const m = mod(id), [cols, rows] = gridSize();
+  const w = Math.min(m.size[0], cols), hh = Math.min(m.size[1], rows), [c, r] = freeSpot(w, hh);
+  page().slots.push({ module: id, col: c, row: r, w, h: hh, options: {} });
+  S.sel = page().slots.length - 1; commit(); renderStage(); renderPanel();
+}
+function removeSlot() { if (S.sel < 0) return; page().slots.splice(S.sel, 1); S.sel = -1; commit(); renderStage(); renderPanel(); }
+function dupSlot() {
+  const s = slot(); if (!s || page().slots.length >= 32) return;
+  const [cols, rows] = gridSize(), c = JSON.parse(JSON.stringify(s));
+  c.col = clamp(s.col + 1, 0, cols - c.w); c.row = clamp(s.row + 1, 0, rows - c.h);
+  page().slots.push(c); S.sel = page().slots.length - 1; commit(); renderStage(); renderPanel();
+}
+function reorder(toFront) {
+  const sl = page().slots, s = sl.splice(S.sel, 1)[0];
+  if (toFront) sl.push(s); else sl.unshift(s);
+  S.sel = toFront ? sl.length - 1 : 0; commit(); renderStage(); renderPanel();
+}
+function syncPosInputs() {
+  const s = slot(); if (!s) return;
+  for (const k of ["col", "row", "w", "h"]) { const i = $("#pos_" + k); if (i) i.value = s[k]; }
+}
+
+// ------------------------------------------------------------------ form helpers
+function switchField(label, get, set, disabled) {
+  return h("label", { class: "sw" }, h("input", { type: "checkbox", checked: !!get(), disabled: !!disabled, onchange: e => set(e.target.checked) }), label);
+}
+function selectField(label, choices, get, set) {
+  const sel = h("select", { onchange: e => set(e.target.value) }, choices.map(([v, l]) => h("option", { value: v, selected: v === get() }, l)));
+  return h("div", { class: "field" }, h("label", {}, label), sel);
+}
+function textField(label, get, set, extra = {}) {
+  return h("div", { class: "field" }, h("label", {}, label), h("input", { type: "text", value: get(), oninput: e => set(e.target.value), ...extra }));
+}
+function numField(label, get, set, min, max, step = 1) {
+  return h("div", { class: "field" }, h("label", {}, label), h("input", { type: "number", min, max, step, value: get(), oninput: e => { const v = e.target.value; if (v !== "") set(clamp(+v, min, max)); } }));
+}
+function rangeField(label, get, set, min, max, unit = "") {
+  const val = h("span", {}, get() + unit);
+  const inp = h("input", { type: "range", min, max, value: get(), oninput: e => { set(+e.target.value); val.textContent = e.target.value + unit; } });
+  return h("div", { class: "field" }, h("div", { class: "inline" }, h("label", { class: "grow lab", style: "color:var(--muted);font-size:12.5px" }, label), val), inp);
+}
+function colorField(label, get, set, allowDefault) {
+  const cur = get();
+  const inp = h("input", { type: "color", value: cur || "#ffffff", oninput: e => { set(e.target.value); st.textContent = e.target.value; } });
+  const st = h("span", { class: "hint" }, cur || "padrão");
+  const items = [inp, st];
+  if (allowDefault) items.push(h("button", { class: "btn small", onclick: () => { set(""); st.textContent = "padrão"; } }, "Usar padrão"));
+  return h("div", { class: "field" }, h("div", { class: "lab" }, label), h("div", { class: "inline" }, items));
+}
+async function uploadImage(file) {
+  if (!file) return null;
+  try {
+    const r = await api("/api/upload?name=" + encodeURIComponent(file.name), { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file });
+    S.media = r.media; return r.name;
+  } catch (e) { toast(e.message, true); return null; }
+}
+function fileField(label, get, set) {
+  const wrap = h("div", { class: "field" }, h("div", { class: "lab" }, label));
+  const draw = () => {
+    wrap.querySelectorAll(".dyn").forEach(x => x.remove());
+    const cur = get(), box = h("div", { class: "dyn" });
+    if (cur) box.append(h("img", { class: "thumb", src: "/api/media/" + encodeURIComponent(cur), alt: "" }));
+    const picker = h("input", { type: "file", accept: "image/png,image/jpeg,image/gif,image/webp,image/bmp", style: "display:none", onchange: async e => {
+      const n = await uploadImage(e.target.files[0]); if (n) { set(n); draw(); }
+    } });
+    const old = S.media.filter(m => m !== cur);
+    box.append(h("div", { class: "inline", style: "margin-top:8px;flex-wrap:wrap" },
+      h("button", { class: "btn small primary", onclick: () => picker.click() }, cur ? "Trocar imagem…" : "Escolher imagem…"),
+      cur ? h("button", { class: "btn small", onclick: () => { set(""); draw(); } }, "Remover") : null, picker));
+    if (old.length) {
+      const sel = h("select", { onchange: e => { if (e.target.value) { set(e.target.value); draw(); } } },
+        h("option", { value: "" }, "Usar uma imagem já enviada…"), old.map(m => h("option", { value: m }, m)));
+      box.append(h("div", { style: "margin-top:8px" }, sel));
+    }
+    wrap.append(box);
+  };
+  draw(); return wrap;
+}
+function optControl(spec, s) {
+  const get = () => (s.options[spec.key] ?? spec.default), set = v => { s.options[spec.key] = v; commit(); };
+  switch (spec.kind) {
+    case "bool": return switchField(spec.label, get, set);
+    case "choice": return selectField(spec.label, spec.choices, get, set);
+    case "int": return numField(spec.label, get, set, spec.min ?? 0, spec.max ?? 1000);
+    case "color": return colorField(spec.label, get, set, true);
+    case "file": return fileField(spec.label, get, set);
+    default: return textField(spec.label, get, set);
+  }
+}
+
+// ------------------------------------------------------------------ panel: modules
+function slotDetail(s) {
+  const o = s.options || {};
+  const bits = [];
+  if (s.module === "text" && o.text) bits.push("“" + o.text.slice(0, 22) + "”");
+  else if (s.module === "image") bits.push(o.image || "sem arquivo");
+  else if (o.label) bits.push(o.label);
+  bits.push(s.w + "×" + s.h + " em " + s.col + "," + s.row);
+  return bits.join(" · ");
+}
+function moveSlot(i, toFront) {  // one step in the drawing order (the list shows front first)
+  const sl = page().slots, j = toFront ? i + 1 : i - 1;
+  if (j < 0 || j >= sl.length) return;
+  [sl[i], sl[j]] = [sl[j], sl[i]];
+  if (S.sel === i) S.sel = j; else if (S.sel === j) S.sel = i;
+  commit(); renderStage(); renderPanel();
+}
+function layersGroup() {
+  const sl = page().slots;
+  if (!sl.length) return null;
+  const rows = sl.map((s, i) => i).reverse().map(i => {
+    const s = sl[i], m = mod(s.module);
+    return h("div", { class: "lrow" },
+      h("button", { class: "pick" + (i === S.sel ? " on" : "") + (s.hidden ? " off" : ""), title: "Selecionar este módulo", onclick: () => { select(i); renderStage(); } },
+        h("span", {}, (m ? m.label : s.module) + (s.hidden ? " (oculto)" : "")), h("small", {}, slotDetail(s))),
+      h("button", { class: "btn small mini", title: s.hidden ? "Mostrar na tela" : "Ocultar da tela (sem remover)", onclick: () => { s.hidden = !s.hidden; commit(); renderStage(); renderPanel(); } }, s.hidden ? "Mostrar" : "Ocultar"),
+      h("button", { class: "btn small mini", title: "Trazer para frente", disabled: i === sl.length - 1, onclick: () => moveSlot(i, true) }, "▲"),
+      h("button", { class: "btn small mini", title: "Enviar para trás", disabled: i === 0, onclick: () => moveSlot(i, false) }, "▼"));
+  });
+  return h("div", { class: "group" }, h("h4", {}, "Nesta página (" + sl.length + ")"),
+    h("div", { class: "hint", style: "margin-bottom:6px" }, "De cima para baixo = da frente para o fundo. Clique para selecionar."),
+    h("div", { class: "layers" }, rows));
+}
+function panelModulos() {
+  const out = [], groups = {};
+  S.cat.modules.forEach(m => (groups[m.group] ||= []).push(m));
+  out.push(h("div", { class: "group" }, h("h4", {}, "Estilo dos indicadores"),
+    h("div", { class: "row" },
+      ["barra", "radial"].map(k => h("button", { class: "btn" + (S.layout.theme.bar_style === k ? " primary" : ""), onclick: () => { S.layout.theme.bar_style = k; commit(); renderPanel(); } },
+        k === "barra" ? "▬ Barras" : "◔ Radial (círculos)"))),
+    h("div", { class: "hint", style: "margin-top:6px" }, "Vale para CPU, GPU, VRAM, RAM e disco. Para mudar só um módulo, selecione-o e use “Estilo do indicador”. Para a disposição em anéis, use Modelo → “Anéis”.")));
+  const lg = layersGroup(); if (lg) out.push(lg);
+  const s = slot();
+  if (s) {
+    const m = mod(s.module);
+    const sel = h("select", { onchange: e => { s.module = e.target.value; s.options = {}; commit(); renderStage(); renderPanel(); } },
+      Object.entries(groups).map(([g, ms]) => h("optgroup", { label: g }, ms.map(x => h("option", { value: x.id, selected: x.id === s.module }, x.label)))));
+    const [cols, rows] = gridSize();
+    const pos = (k, label, max, min) => h("div", { class: "field" }, h("label", {}, label),
+      h("input", { type: "number", id: "pos_" + k, min, max, value: s[k], oninput: e => {
+        if (e.target.value === "") return; s[k] = clamp(+e.target.value, min, max);
+        s.col = clamp(s.col, 0, cols - s.w); s.row = clamp(s.row, 0, rows - s.h);
+        const el = document.querySelector('.slot[data-i="' + S.sel + '"]'); if (el) placeSlot(el, s); commit();
+      } }));
+    out.push(h("div", { class: "group" }, h("h4", {}, "Módulo selecionado"),
+      h("div", { class: "field" }, h("label", {}, "Conteúdo"), sel),
+      h("div", { class: "num4" }, pos("col", "Coluna", cols - 1, 0), pos("row", "Linha", rows - 1, 0), pos("w", "Largura", cols, 1), pos("h", "Altura", rows, 1)),
+      h("div", { class: "hint", style: "margin:6px 0 12px" }, "Medidas em células (1 célula = 40 px na tela)."),
+      m.options.concat(S.cat.common_options).map(sp => optControl(sp, s)),
+      h("div", { class: "row", style: "margin-top:6px" },
+        h("button", { class: "btn small", onclick: dupSlot }, "Duplicar"),
+        h("button", { class: "btn small", onclick: () => reorder(true), title: "Desenhar por cima dos outros" }, "Trazer p/ frente"),
+        h("button", { class: "btn small", onclick: () => reorder(false) }, "Enviar p/ trás"),
+        h("button", { class: "btn small danger", onclick: removeSlot }, "Remover"))));
+  } else {
+    out.push(h("div", { class: "note" }, "Clique em um módulo na pré-visualização para editar, ou adicione um novo abaixo."));
+  }
+  out.push(h("div", { class: "group" }, h("h4", {}, "Adicionar módulo"),
+    Object.entries(groups).map(([g, ms]) => h("div", { style: "margin-bottom:10px" },
+      h("div", { class: "hint", style: "margin-bottom:5px" }, g),
+      h("div", { class: "palette" }, ms.map(x => {
+        const n = page().slots.filter(q => q.module === x.id).length;
+        return h("button", { class: "btn", title: n ? "Já há " + n + " na página: este botão adiciona mais um. Para editar o existente, use a lista “Nesta página”." : "Adicionar à página", onclick: () => addSlot(x.id) },
+          "+ " + x.label, n ? h("span", { class: "badge" }, String(n)) : null);
+      }))))));
+  return out;
+}
+
+// ------------------------------------------------------------------ panel: appearance
+function panelAparencia() {
+  const t = S.layout.theme, bg = t.background, cd = t.card;
+  const fonts = S.cat.fonts.map(f => [f, f]);
+  const rerenderBgThumb = () => renderPanel();
+  return [
+    h("div", { class: "group" }, h("h4", {}, "Fundo"),
+      colorField("Cor de fundo", () => bg.color, v => { bg.color = v; commit(); }, false),
+      fileField("Imagem de fundo", () => bg.image, v => { bg.image = v; commit(); setTimeout(rerenderBgThumb, 0); }),
+      rangeField("Escurecer a imagem", () => bg.dim, v => { bg.dim = v; commit(); }, 0, 95, "%"),
+      selectField("Ajuste da imagem", [["cover", "Preencher (corta as bordas)"], ["contain", "Inteira (com bordas)"], ["stretch", "Esticar"]], () => bg.fit, v => { bg.fit = v; commit(); }),
+      h("div", { class: "hint" }, "Dica: com foto de fundo, ative os cartões translúcidos abaixo para manter o texto legível.")),
+    h("div", { class: "group" }, h("h4", {}, "Cartões atrás dos módulos"),
+      switchField("Usar cartões", () => cd.enabled, v => { cd.enabled = v; commit(); }),
+      colorField("Cor do cartão", () => cd.color, v => { cd.color = v; commit(); }, false),
+      rangeField("Opacidade", () => cd.opacity, v => { cd.opacity = v; commit(); }, 0, 100, "%"),
+      rangeField("Cantos arredondados", () => cd.radius, v => { cd.radius = v; commit(); }, 0, 30, " px"),
+      h("div", { class: "hint" }, "Cada módulo pode ignorar o tema em “Cartão de fundo”.")),
+    h("div", { class: "group" }, h("h4", {}, "Texto e cores"),
+      selectField("Fonte", fonts, () => t.font, v => { t.font = v; commit(); }),
+      h("div", { class: "hint", style: "margin:-6px 0 12px" }, "Precisa estar instalada no Windows; se não estiver, uma fonte padrão é usada."),
+      colorField("Texto principal", () => t.text, v => { t.text = v; commit(); }, false),
+      colorField("Texto secundário", () => t.muted, v => { t.muted = v; commit(); }, false),
+      colorField("Temperaturas", () => t.temp, v => { t.temp = v; commit(); }, false),
+      colorField("Alerta (uso acima de 90%)", () => t.warn, v => { t.warn = v; commit(); }, false),
+      selectField("Indicador dos módulos (CPU, GPU, RAM…)", [["barra", "Barras horizontais"], ["radial", "Radial (círculos)"]],
+        () => t.bar_style, v => { t.bar_style = v; commit(); }),
+      h("div", { class: "hint", style: "margin:-6px 0 12px" }, "Vale para todos os módulos; cada módulo pode ter o seu próprio estilo nas opções dele (“Seguir o tema”, barra ou radial)."),
+      switchField("Uma cor diferente por módulo", () => t.colorful, v => { t.colorful = v; commit(); renderPanel(); }),
+      t.colorful ? null : colorField("Cor de destaque única", () => t.accent, v => { t.accent = v; commit(); }, false),
+      switchField("Números com vírgula (11,4 GB)", () => t.decimal_comma, v => { t.decimal_comma = v; commit(); })),
+  ];
+}
+
+// ------------------------------------------------------------------ panel: screen
+function statusCard() {
+  const st = S.status || {};
+  return h("div", { class: "note" + (st.connected ? "" : " warn"), id: "statuscard" },
+    h("b", {}, st.connected ? "● Conectada" + (st.port ? " (" + st.port + ")" : "") : "● Sem tela"), h("br"), st.message || "");
+}
+function usbText() {
+  const k = (S.status || {}).usb_kbs;
+  return S.status && S.status.connected ? "Envio médio para a tela: " + (k || 0).toFixed(1).replace(".", ",") + " KB/s (limite ≈ 128 KB/s)." : "";
+}
+function panelTela() {
+  const d = S.layout.device;
+  if (!S.ports) loadPorts();
+  const ports = S.ports || [];
+  const choices = [["auto", "Automático (recomendado)"]].concat(ports.map(p => [p.device, p.device + " — " + p.description + (p.is_screen ? "  ★ tela detectada" : "")]));
+  if (!choices.some(c => c[0] === d.port)) choices.push([d.port, d.port + " (não encontrada)"]);
+  return [
+    statusCard(),
+    h("div", { class: "row", style: "margin-bottom:16px" },
+      h("button", { class: "btn primary", onclick: async () => { await post("/api/reconnect", {}); toast("Reconectando…"); } }, "Reconectar"),
+      h("button", { class: "btn", onclick: () => { S.ports = null; renderPanel(); } }, "Atualizar portas")),
+    h("div", { class: "group" }, h("h4", {}, "Conexão"),
+      selectField("Porta", choices, () => d.port, v => { d.port = v; commit(); })),
+    h("div", { class: "group" }, h("h4", {}, "Imagem"),
+      selectField("Rotação da tela", S.cat.rotations, () => d.orientation, v => { d.orientation = v; commit(); }),
+      h("div", { class: "hint", style: "margin:-6px 0 12px" }, "Se a imagem aparecer de cabeça para baixo, escolha a opção “invertida”. Mudar entre paisagem e retrato reorganiza a grade."),
+      rangeField("Brilho", () => d.brightness, v => { d.brightness = v; commit(); }, 0, 100, "%"),
+      selectField("Frequência de atualização dos números", [[1, "Rápida (1 s)"], [2, "Normal (2 s) — recomendado"], [3, "Econômica (3 s)"], [5, "Lenta (5 s)"]],
+        () => d.refresh, v => { d.refresh = +v; commit(); }),
+      selectField("Estabilidade dos números", [[0, "Tempo real (muda a cada leitura)"], [1, "Suave"], [2, "Calma — menos redesenhos (recomendado)"]],
+        () => d.stability, v => { d.stability = +v; commit(); }),
+      h("div", { class: "hint" }, "A conexão USB desta tela é lenta (~130 KB/s): cada número que muda é redesenhado aos poucos na tela. “Calma” ignora oscilações pequenas (ex.: CPU 3%→4%) e muda os números só quando a diferença importa."),
+      h("div", { class: "hint", id: "usbinfo", style: "margin-top:8px" }, usbText())),
+    h("details", { class: "group" }, h("summary", { class: "hint", style: "cursor:pointer;margin-bottom:10px" }, "Avançado"),
+      switchField("Brilho com escala invertida (se o brilho agir ao contrário)", () => d.invert_brightness, v => { d.invert_brightness = v; commit(); }),
+      selectField("Alinhamento das atualizações parciais (px)", [[1, "1"], [2, "2"], [4, "4"], [8, "8 — seguro (padrão)"], [16, "16"]],
+        () => d.align, v => { d.align = +v; commit(); }),
+      h("div", { class: "hint", style: "margin:-6px 0 12px" }, "Menor = menos dados enviados, mas algumas telas desenham errado em áreas não alinhadas. Se a imagem quebrar, volte para 8."),
+      numField("Quadros por segundo (máx.)", () => d.fps, v => { d.fps = v; commit(); }, 2, 30)),
+  ];
+}
+async function loadPorts() { try { S.ports = await api("/api/ports"); if (S.tab === "tela") renderPanel(); } catch (_) { S.ports = []; } }
+
+// ------------------------------------------------------------------ panel: system
+const SENSOR_LABELS = [["cpu", "CPU uso", "%"], ["cpu_temp", "CPU temperatura", " °C"], ["gpu", "GPU uso", "%"], ["gpu_temp", "GPU temperatura", " °C"],
+  ["gpu_mem", "Memória de vídeo", "%"], ["ram", "RAM", "%"], ["disk", "Disco", "%"], ["net_down_h", "Download", ""], ["net_up_h", "Upload", ""]];
+function panelSistema() {
+  const a = S.autostart, sn = S.layout.sensors;
+  const kv = h("div", { class: "kv", id: "sensorkv" }, h("span", {}, "Lendo sensores…"), h("span"));
+  const src = h("div", { id: "sensorsrc" });
+  setTimeout(refreshSensors, 0);
+  return [
+    h("div", { class: "group" }, h("h4", {}, "Inicialização"),
+      switchField("Iniciar com o Windows (em segundo plano)", () => a.enabled, async v => {
+        try { const r = await post("/api/autostart", { enabled: v }); S.autostart = r; toast(v ? "O Subscreen vai iniciar com o Windows." : "Início automático desativado."); }
+        catch (e) { toast(e.message, true); } renderPanel();
+      }, !a.supported),
+      a.supported ? h("div", { class: "hint" }, "Ao ligar o PC, a tela passa a funcionar sozinha, sem abrir esta janela. Para editar, abra o Subscreen novamen"+"te pelo atalho.")
+                  : h("div", { class: "note warn" }, "Disponível apenas no Windows (este computador não é Windows).")),
+    h("div", { class: "group" }, h("h4", {}, "Sensores de hardware"),
+      switchField("GPU NVIDIA via nvidia-smi", () => sn.nvidia_smi, v => { sn.nvidia_smi = v; commit(); }),
+      switchField("LibreHardwareMonitor (temperatura da CPU, GPU AMD/Intel)", () => sn.lhm, v => { sn.lhm = v; commit(); }),
+      h("div", { class: "hint", style: "margin-bottom:10px" }, "Para a temperatura da CPU: abra o LibreHardwareMonitor como administrador e ative Options → Remote Web Server → Run."),
+      src, h("div", { class: "card", style: "margin-top:10px;padding:10px 12px" }, kv)),
+    h("div", { class: "group" }, h("h4", {}, "Programa"),
+      h("div", { class: "row" },
+        h("button", { class: "btn danger", onclick: async () => { if (confirm("Restaurar o layout e a aparência padrão? Suas imagens enviadas são mantidas.")) { const r = await post("/api/reset", {}); S.layout = r.layout; S.sel = -1; S.page = 0; renderAll(); toast("Padrões restaurados."); } } }, "Restaurar padrões"),
+        h("button", { class: "btn danger", onclick: async () => { if (confirm("Encerrar o Subscreen? A tela deixará de ser atualizada.")) { try { await post("/api/quit", {}); } catch (_) {} document.body.innerHTML = "<p style='padding:40px;color:#8b95a7'>Subscreen encerrado. Você pode fechar esta janela.</p>"; } } }, "Encerrar programa")),
+      h("div", { class: "hint", style: "margin-top:12px" }, "Versão " + S.version + " · Seus dados ficam em ", h("code", {}, S.home))),
+  ];
+}
+async function refreshSensors() {
+  const kv = $("#sensorkv"); if (!kv || S.tab !== "sistema") return;
+  try {
+    const r = await api("/api/sensors");
+    kv.replaceChildren(...SENSOR_LABELS.flatMap(([k, l, u]) => {
+      const v = r.values[k]; const txt = v == null ? "--" : (typeof v === "number" ? (k.includes("temp") || k === "ram" || k === "disk" || k.startsWith("gpu") || k === "cpu" ? v.toFixed(0) : v) + u : v);
+      return [h("span", {}, l), h("span", {}, txt)];
+    }));
+    const src = $("#sensorsrc"); if (src) src.replaceChildren(...r.sources.map(s => h("div", { class: "src " + (s.ok ? "ok" : "bad") }, h("span", { class: "dot" }), s.name + (s.ok ? ": funcionando" : ": não encontrado"))));
+  } catch (_) {}
+  if (S.tab === "sistema") setTimeout(refreshSensors, 1500);
+}
+
+// ------------------------------------------------------------------ shell
+function renderPanel() {
+  const p = $("#panel"), keep = p.scrollTop; p.replaceChildren(...({ modulo: panelModulos, aparencia: panelAparencia, tela: panelTela, sistema: panelSistema }[S.tab])());
+  p.scrollTop = keep;
+}
+function renderAll() { renderPages(); renderPageCfg(); renderStage(); renderPanel(); focusPage(); }
+document.querySelectorAll("#tabs button").forEach(b => b.addEventListener("click", () => {
+  S.tab = b.dataset.tab; document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x === b));
+  if (S.tab === "tela") S.ports = null;
+  $("#panel").scrollTop = 0; renderPanel();
+}));
+function updateStatus() {
+  const st = S.status || {}, pill = $("#pill");
+  pill.className = "pill " + (st.connected ? "ok" : "");
+  $("#pilltext").textContent = st.connected ? "Tela conectada" + (st.port ? " · " + st.port : "") : "Sem tela · pré-visualização";
+  pill.title = st.message || "";
+  const c = $("#statuscard"); if (c) c.replaceWith(statusCard());
+  const u = $("#usbinfo"); if (u) u.textContent = usbText();
+}
+async function pollStatus() {
+  try { const st = await api("/api/status"); if (JSON.stringify(st) !== JSON.stringify(S.status)) { S.status = st; updateStatus(); } } catch (_) {
+    $("#pill").className = "pill bad"; $("#pilltext").textContent = "Programa não responde";
+  }
+  setTimeout(pollStatus, 2000);
+}
+let liveBusy = false;
+function refreshLive() {
+  if (liveBusy) return; liveBusy = true;
+  const img = new Image();
+  img.onload = () => { $("#live").src = img.src; liveBusy = false; };
+  img.onerror = () => { liveBusy = false; };
+  img.src = "/api/preview.png?t=" + Date.now();
+}
+// keeps the physical screen on the page being edited (it goes back to rotating when the editor is idle)
+function focusPage() { if (S.layout && !document.hidden) post("/api/focus", { page: S.page }).catch(() => {}); }
+setInterval(focusPage, 15000);
+document.addEventListener("visibilitychange", focusPage);
+async function init() {
+  try { $("#showgrid").checked = localStorage.getItem("grid") !== "0"; } catch (_) { $("#showgrid").checked = true; }
+  try {
+    const st = await api("/api/state");
+    Object.assign(S, { layout: st.layout, cat: st.catalog, status: st.status, media: st.media, autostart: st.autostart, home: st.home, version: st.version });
+  } catch (e) { document.body.innerHTML = "<p style='padding:40px'>Não foi possível falar com o programa: " + e.message + "</p>"; return; }
+  renderAll(); updateStatus(); pollStatus(); setInterval(refreshLive, 600); refreshLive();
+}
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+# Opcional: módulo Música. Sem estes pacotes o resto do programa funciona normalmente.
+# Captura do áudio que está tocando (visualizador):
+soundcard>=0.4.3; sys_platform == "win32"
+# "O que está tocando" (título/artista) via Windows; sem isso, só o Spotify é lido pelo título da janela:
+winrt-runtime; sys_platform == "win32"
+winrt-Windows.Foundation; sys_platform == "win32"
+winrt-Windows.Foundation.Collections; sys_platform == "win32"
+winrt-Windows.Storage.Streams; sys_platform == "win32"
+winrt-Windows.Media.Control; sys_platform == "win32"
