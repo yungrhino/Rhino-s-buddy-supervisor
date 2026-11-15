@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Build do executavel (distribua pela aba "Releases" do GitHub, nao pelo repositorio)
+build/
+dist/
+*.spec
+*.exe
+
+# Dados do usuario e do dispositivo: nunca vao para o repositorio
+layout.json
+media/
+*.log
+config.local.toml
+
+# Material de terceiros que NAO pode ser publicado (o software original da tela,
+# temas, imagens, capas de album, logos de jogos etc.). Guarde fora da pasta do projeto.
+35inchENG*/
+UsbMonitor*
+*.mp4
+.DS_Store
+Thumbs.db

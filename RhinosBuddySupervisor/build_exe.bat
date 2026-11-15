@@ -11,16 +11,20 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-echo [1/3] Instalando dependencias...
+echo [1/4] Instalando dependencias...
 python -m pip install -r requirements.txt pyinstaller
 if errorlevel 1 goto erro
 echo.
-echo [2/3] Instalando recursos do modulo Musica (opcional)...
+echo [2/4] Instalando recursos do modulo Musica (opcional)...
 python -m pip install -r requirements-musica.txt
 if errorlevel 1 echo Aviso: o modulo Musica ficara sem audio/titulo; o resto funciona normalmente.
 echo.
-echo [3/3] Empacotando (leva 1 a 3 minutos)...
+echo [3/4] Empacotando (leva 1 a 3 minutos)...
 python -m PyInstaller --noconfirm --clean --noconsole --name RhinosBuddySupervisor --icon rhinos_buddy.ico --add-data "rhinos_buddy\web;rhinos_buddy\web" --collect-submodules serial --collect-all soundcard --collect-submodules winrt run_app.py
+if errorlevel 1 goto erro
+echo.
+echo [4/4] Reunindo as licencas das bibliotecas (devem acompanhar o programa)...
+python tools\collect_licenses.py dist\RhinosBuddySupervisor
 if errorlevel 1 goto erro
 echo.
 echo ============================================================

@@ -269,3 +269,17 @@ def test_app_identity_is_renamed():
             if re.search(r"subscreen", line, re.I) and "nome antigo" not in line:
                 leftovers.append(f"{f.name}:{n}: {line.strip()[:80]}")
     assert not leftovers, leftovers
+
+
+def test_license_collector_gathers_texts_and_reports_missing(tmp_path):
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
+    import collect_licenses as C
+    text, missing = C.collect(["Pillow", "numpy", "definitely-not-installed-pkg"])
+    assert "pillow" in text.lower() and "numpy" in text.lower() and "permission" in text.lower()
+    assert missing == ["definitely-not-installed-pkg"]
+    assert C.main([str(tmp_path / "out")]) == 0
+    out = tmp_path / "out"
+    assert (out / "THIRD_PARTY_LICENSES.txt").stat().st_size > 1000
+    assert (out / "LICENSE").is_file() and (out / "THIRD_PARTY_NOTICES.md").is_file()

@@ -47,9 +47,9 @@ Linha de comando (avançado): `python run_app.py [--background] [--no-hardware] 
 
 # Versão por linha de comando
 
-Software open source (MIT) para telas secundárias USB de 3,5" (família Turing Smart Screen, a mesma do `UsbMonitor.exe`), no estilo dos softwares de watercooler da Acegeek: **você decide o que aparece na telinha**.
+Software open source (MIT) para telas secundárias USB de 3,5" (família Turing Smart Screen): **você decide o que aparece na telinha**.
 
-Escrito do zero em Python. Nenhum código, tema ou imagem do software original foi copiado.
+Escrito do zero em Python. Nenhum código, tema ou imagem do software que acompanha a tela foi copiado.
 
 ## Instalação
 
@@ -132,3 +132,13 @@ Serial USB-CDC, pacotes de 6 bytes com coordenadas de 10 bits empacotadas e coma
 ```
 pip install pytest && python -m pytest tests
 ```
+
+## Licença, marcas e privacidade
+
+- **Licença:** MIT (arquivo `LICENSE`). As bibliotecas de terceiros e os programas externos citados estão em
+  [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md); o `.exe` gerado leva os textos completos em `THIRD_PARTY_LICENSES.txt`.
+- **Marcas:** "Turing Smart Screen", "UsbMonitor", "Spotify", "Windows", "NVIDIA" etc. pertencem aos seus donos e são citadas só para
+  identificar produtos compatíveis. O projeto não é afiliado a nenhum deles.
+- **Privacidade:** tudo roda no seu computador. O editor só atende em `127.0.0.1`, não há telemetria, conta ou envio de dados. A única
+  conexão de rede opcional é a leitura do LibreHardwareMonitor local (`127.0.0.1:8085`) e os widgets de URL que você mesmo configurar.
+- **Publicar no GitHub e instalar o LibreHardwareMonitor:** veja [`docs/GUIA_GIT_E_LICENCAS.md`](docs/GUIA_GIT_E_LICENCAS.md).
