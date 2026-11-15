@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rhinos_buddy"
+version = "0.1.0"
+description = "Open source driver and widget engine for 3.5-inch USB secondary screens"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = ["pyserial>=3.5", "Pillow>=10.1", "numpy", "psutil"]
+
+[project.scripts]
+rhinos-buddy = "rhinos_buddy.cli:main"
+rhinos-buddy-app = "rhinos_buddy.app:main"
+
+[tool.setuptools.packages.find]
+include = ["rhinos_buddy*"]
+
+[tool.setuptools.package-data]
+rhinos_buddy = ["web/*.html"]
