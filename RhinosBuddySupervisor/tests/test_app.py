@@ -115,3 +115,15 @@ def test_second_instance_detection_needs_our_app(tmp_path):
         assert not A.already_running(port)
     finally:
         s.close()
+
+
+def test_notify_test_endpoint_shows_a_sample_notification(server):
+    from rhinos_buddy import notifications
+    app, base = server
+    n = notifications.get_notifier()
+    n.history.clear()
+    code, _ = call(base + "/api/notify_test", "POST", {}, W)
+    assert code == 200 and n.active() is not None
+    code, st = call(base + "/api/status")
+    assert code == 200 and "notifications" in st
+    n.history.clear()

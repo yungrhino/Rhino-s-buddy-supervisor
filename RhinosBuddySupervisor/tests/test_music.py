@@ -391,3 +391,134 @@ def test_standalone_visualizer_module(tmp_path):
     eng.step(1.0); eng.step(2.0)
     px = np.asarray(disp.frame.convert("RGB"))
     assert (px.sum(axis=2) > 120).any() and not (px[:, 170:].sum(axis=2) > 120).any()
+
+
+# --------------------------------------------------------------------------- following the default output device
+import sys
+import threading
+import time
+import types
+
+
+class FakeWorld:
+    """A fake `soundcard` module: devices come and go, every device plays its own pitch."""
+
+    def __init__(self):
+        self.default = ("id-spk", "Alto-falantes")
+        self.pitch = {"Alto-falantes": 200.0, "Fone Bluetooth": 3500.0}
+        self.block_forever: set = set()        # devices whose loopback blocks (silent device)
+        self.broken: set = set()               # devices that raise when recording
+        self.none = False
+        self.opened: list = []
+        self.release = threading.Event()
+
+    def module(self):
+        w, m = self, types.ModuleType("soundcard")
+
+        class Speaker:
+            def __init__(s, id_, name): s.id, s.name = id_, name
+
+        def default_speaker():
+            if w.none:
+                raise RuntimeError("no output device")
+            return Speaker(*w.default)
+
+        class Rec:
+            def __init__(s, name): s.name = name
+            def __enter__(s): return s
+            def __exit__(s, *a): return False
+            def record(s, numframes):
+                if s.name in w.block_forever:
+                    w.release.wait(30)            # blocked like a silent WASAPI loopback
+                    raise RuntimeError("woke up")
+                if s.name in w.broken:
+                    raise RuntimeError("device removed")
+                time.sleep(0.01)
+                t = np.arange(numframes) / 48000
+                x = (0.5 * np.sin(2 * np.pi * w.pitch[s.name] * t)).astype(np.float32)
+                return np.stack([x, x], axis=1)
+
+        class Mic:
+            def __init__(s, name): s.name = name
+            def recorder(s, samplerate, channels, blocksize):
+                w.opened.append(s.name)
+                return Rec(s.name)
+
+        m.default_speaker = default_speaker
+        m.get_microphone = lambda id, include_loopback: Mic(id)
+        return m
+
+
+def run_with_world(monkeypatch, world):
+    monkeypatch.setitem(sys.modules, "soundcard", world.module())
+    monkeypatch.setattr(audio, "DEVICE_POLL", 0.03)
+    a = audio.Analyzer()
+    return a
+
+
+def top_band(a):
+    return int(np.argmax(a.levels(16)))
+
+
+def wait_for(cond, seconds=3.0):
+    end = time.time() + seconds
+    while time.time() < end:
+        if cond():
+            return True
+        time.sleep(0.02)
+    return False
+
+
+def test_visualizer_follows_a_new_default_device(monkeypatch):
+    world = FakeWorld()
+    a = run_with_world(monkeypatch, world)
+    try:
+        assert wait_for(lambda: a.levels(16).max() > 0.5)
+        low = top_band(a)
+        world.block_forever.add("Alto-falantes")   # the old device goes quiet/blocks, like a real loopback
+        world.default = ("id-bt", "Fone Bluetooth")  # Bluetooth headset becomes the default output
+        assert wait_for(lambda: a.device == "Fone Bluetooth")
+        assert wait_for(lambda: a.levels(16).max() > 0.5 and top_band(a) > low + 4), "never switched to the new device"
+        assert "Fone Bluetooth" in a.status()["message"]
+        assert world.opened.count("Fone Bluetooth") == 1          # opened once, not over and over
+        world.default = ("id-spk", "Alto-falantes")                # ... and back to the speakers
+        world.block_forever.clear()
+        assert wait_for(lambda: a.device == "Alto-falantes" and top_band(a) <= low + 1)
+    finally:
+        world.release.set()
+        a.stop()
+
+
+def test_stale_capture_cannot_overwrite_the_current_device(monkeypatch):
+    world = FakeWorld()
+    a = run_with_world(monkeypatch, world)
+    try:
+        assert wait_for(lambda: a.levels(16).max() > 0.5)
+        world.block_forever.add("Alto-falantes")
+        world.default = ("id-bt", "Fone Bluetooth")
+        assert wait_for(lambda: a.device == "Fone Bluetooth" and top_band(a) > 8)
+        world.release.set()                    # the old, blocked recording wakes up (raises): must be ignored
+        time.sleep(0.3)
+        assert a.status()["state"] == "ok" and "Fone Bluetooth" in a.status()["message"]
+        assert top_band(a) > 8
+    finally:
+        world.release.set()
+        a.stop()
+
+
+def test_visualizer_recovers_when_the_device_disappears_and_returns(monkeypatch):
+    world = FakeWorld()
+    a = run_with_world(monkeypatch, world)
+    try:
+        assert wait_for(lambda: a.levels(16).max() > 0.5)
+        world.broken.add("Alto-falantes")          # headset unplugged mid-capture
+        assert wait_for(lambda: a.status()["state"] == "error")
+        world.none = True                           # no output device at all for a while
+        time.sleep(0.2)
+        world.none = False
+        world.broken.clear()
+        world.default = ("id-bt", "Fone Bluetooth")
+        assert wait_for(lambda: a.status()["state"] == "ok" and a.levels(16).max() > 0.5 and top_band(a) > 8, seconds=6.0)
+    finally:
+        world.release.set()
+        a.stop()

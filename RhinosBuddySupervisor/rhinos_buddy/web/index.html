@@ -566,6 +566,10 @@ function usbText() {
   const k = (S.status || {}).usb_kbs;
   return S.status && S.status.connected ? "Envio médio para a tela: " + (k || 0).toFixed(1).replace(".", ",") + " KB/s (limite ≈ 128 KB/s)." : "";
 }
+function notifText() {
+  const n = (S.status || {}).notifications;
+  return n && n.enabled ? n.message : "";
+}
 function panelTela() {
   const d = S.layout.device;
   if (!S.ports) loadPorts();
@@ -591,6 +595,15 @@ function panelTela() {
         () => d.stability, v => { d.stability = +v; commit(); }),
       h("div", { class: "hint" }, "A conexão USB desta tela é lenta (~130 KB/s): cada número que muda é redesenhado aos poucos na tela. “Calma” ignora oscilações pequenas (ex.: CPU 3%→4%) e muda os números só quando a diferença importa."),
       h("div", { class: "hint", id: "usbinfo", style: "margin-top:8px" }, usbText())),
+    h("div", { class: "group" }, h("h4", {}, "Notificações"),
+      switchField("Mostrar notificações do Windows na tela", () => d.notify, v => { d.notify = v; commit(); }),
+      h("div", { class: "hint", style: "margin:-4px 0 12px" }, "Desligado por padrão: o texto das notificações pode ser privado. Ligado, o programa lê as notificações do Windows (WhatsApp Web no navegador, Discord, e-mail…) e mostra um aviso por alguns segundos por cima dos cards que tiverem “Mostrar avisos de notificação” marcado nas opções deles. Nada é gravado nem enviado para fora do computador."),
+      numField("Duração do aviso (segundos)", () => d.notify_seconds, v => { d.notify_seconds = v; commit(); }, 2, 30),
+      textField("Só destes aplicativos (separe por vírgula; vazio = todos)", () => d.notify_apps, v => { d.notify_apps = v; commit(); }, { placeholder: "WhatsApp, Discord", maxLength: 120 }),
+      switchField("Mostrar o texto da mensagem (desligado: só “Nova notificação” e o app)", () => d.notify_text, v => { d.notify_text = v; commit(); }),
+      h("div", { class: "row", style: "margin-top:6px" },
+        h("button", { class: "btn small", onclick: async () => { try { await post("/api/notify_test", {}); toast("Aviso de teste enviado."); } catch (e) { toast(e.message, true); } } }, "Testar aviso")),
+      h("div", { class: "hint", id: "notifinfo", style: "margin-top:8px" }, notifText())),
     h("details", { class: "group" }, h("summary", { class: "hint", style: "cursor:pointer;margin-bottom:10px" }, "Avançado"),
       switchField("Brilho com escala invertida (se o brilho agir ao contrário)", () => d.invert_brightness, v => { d.invert_brightness = v; commit(); }),
       selectField("Alinhamento das atualizações parciais (px)", [[1, "1"], [2, "2"], [4, "4"], [8, "8 — seguro (padrão)"], [16, "16"]],
@@ -626,7 +639,7 @@ function panelSistema() {
       h("div", { class: "row" },
         h("button", { class: "btn danger", onclick: async () => { if (confirm("Restaurar o layout e a aparência padrão? Suas imagens enviadas são mantidas.")) { const r = await post("/api/reset", {}); S.layout = r.layout; S.sel = -1; S.page = 0; renderAll(); toast("Padrões restaurados."); } } }, "Restaurar padrões"),
         h("button", { class: "btn danger", onclick: async () => { if (confirm("Encerrar o Rhino's Buddy Supervisor? A tela deixará de ser atualizada.")) { try { await post("/api/quit", {}); } catch (_) {} document.body.innerHTML = "<p style='padding:40px;color:#8b95a7'>Rhino's Buddy Supervisor encerrado. Você pode fechar esta janela.</p>"; } } }, "Encerrar programa")),
-      h("div", { class: "hint", style: "margin-top:12px" }, "Versão " + S.version + " · Seus dados ficam em ", h("code", {}, S.home))),
+      h("div", { class: "hint", style: "margin-top:12px" }, "Versão " + S.version + (S.version_title ? " (" + S.version_title + ")" : "") + " · Seus dados ficam em ", h("code", {}, S.home))),
   ];
 }
 async function refreshSensors() {
@@ -660,6 +673,7 @@ function updateStatus() {
   pill.title = st.message || "";
   const c = $("#statuscard"); if (c) c.replaceWith(statusCard());
   const u = $("#usbinfo"); if (u) u.textContent = usbText();
+  const ni = $("#notifinfo"); if (ni) ni.textContent = notifText();
 }
 async function pollStatus() {
   try { const st = await api("/api/status"); if (JSON.stringify(st) !== JSON.stringify(S.status)) { S.status = st; updateStatus(); } } catch (_) {
@@ -683,7 +697,7 @@ async function init() {
   try { $("#showgrid").checked = localStorage.getItem("grid") !== "0"; } catch (_) { $("#showgrid").checked = true; }
   try {
     const st = await api("/api/state");
-    Object.assign(S, { layout: st.layout, cat: st.catalog, status: st.status, media: st.media, autostart: st.autostart, home: st.home, version: st.version });
+    Object.assign(S, { layout: st.layout, cat: st.catalog, status: st.status, media: st.media, autostart: st.autostart, home: st.home, version: st.version, version_title: st.version_title });
   } catch (e) { document.body.innerHTML = "<p style='padding:40px'>Não foi possível falar com o programa: " + e.message + "</p>"; return; }
   renderAll(); updateStatus(); pollStatus(); setInterval(refreshLive, 600); refreshLive();
 }

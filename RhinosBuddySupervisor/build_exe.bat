@@ -16,7 +16,7 @@ python -m pip install -r requirements.txt pyinstaller
 if errorlevel 1 goto erro
 echo.
 echo [2/4] Instalando recursos do modulo Musica (opcional)...
-python -m pip install -r requirements-musica.txt
+python -m pip install -r requirements-extras.txt
 if errorlevel 1 echo Aviso: o modulo Musica ficara sem audio/titulo; o resto funciona normalmente.
 echo.
 echo [3/4] Empacotando (leva 1 a 3 minutos)...

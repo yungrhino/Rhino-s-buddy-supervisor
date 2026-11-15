@@ -2,7 +2,7 @@
 
 O código do Rhino's Buddy Supervisor é licenciado sob a licença MIT (arquivo `LICENSE`).
 Ele usa as bibliotecas abaixo, cada uma com a sua própria licença. Elas **não são copiadas para este
-repositório**: são instaladas pelo `pip` (veja `requirements.txt` e `requirements-musica.txt`). Quando você
+repositório**: são instaladas pelo `pip` (veja `requirements.txt` e `requirements-extras.txt`). Quando você
 distribui o `.exe`, o `build_exe.bat` reúne os textos completos em `THIRD_PARTY_LICENSES.txt`.
 
 ## Bibliotecas Python incluídas no executável

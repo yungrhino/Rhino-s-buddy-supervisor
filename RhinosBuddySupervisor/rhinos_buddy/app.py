@@ -30,7 +30,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import __version__, appdata, autostart
+from . import __version__, __version_title__, appdata, autostart
 from . import layout as L
 from .runner import Runner
 
@@ -80,6 +80,7 @@ class App:
     def state(self) -> dict:
         return _clean({
             "version": __version__,
+            "version_title": __version_title__,
             "layout": self.runner.layout,
             "catalog": L.catalog(),
             "status": self.runner.status(),
@@ -219,6 +220,9 @@ def make_handler(app: App):
                 if u.path == "/api/focus":
                     page = json.loads((self._body(1000) or b"{}").decode("utf-8")).get("page", 0)
                     app.runner.focus(page if isinstance(page, int) else 0)
+                    return self._json({"ok": True})
+                if u.path == "/api/notify_test":
+                    app.runner.notify_test()
                     return self._json({"ok": True})
                 if u.path == "/api/reconnect":
                     app.runner.reconnect()

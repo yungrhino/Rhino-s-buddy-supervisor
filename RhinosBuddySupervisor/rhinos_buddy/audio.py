@@ -21,6 +21,7 @@ BLOCK = 2048          # frames per analysis block (~43 ms at 48 kHz)
 FMIN, FMAX = 40.0, 14000.0
 STALE_SECONDS = 0.5   # no audio block for this long == silence (WASAPI loopback sends nothing while silent)
 IDLE_SECONDS = 4.0    # nobody asked for levels for this long: stop recording
+DEVICE_POLL = 1.0     # how often the default output device is re-checked (seconds)
 
 
 def analyze_block(samples: np.ndarray) -> np.ndarray:
@@ -94,6 +95,7 @@ class Analyzer:
         self._detector = BeatDetector()
         self.last_block = 0.0
         self.last_touch = 0.0
+        self.device = ""          # name of the output device being captured
         self.state = "idle"       # idle | ok | unavailable | error
         self.message = "Visualizador desligado."
         self._thread: threading.Thread | None = None
@@ -111,7 +113,8 @@ class Analyzer:
             bass = float(e[:3].mean())
             if self._detector.feed(bass, now):
                 self._beat_seen = 1.0
-            self.state, self.message = "ok", "Capturando o áudio do computador."
+            self.state = "ok"
+            self.message = f"Capturando o áudio de: {self.device}" if self.device else "Capturando o áudio do computador."
 
     # ---- data out
     def levels(self, n: int, sensitivity: int = 50) -> np.ndarray:
@@ -150,7 +153,12 @@ class Analyzer:
     def stop(self) -> None:
         self._stop.set()
 
+    # ---- capture: follows the Windows default output device
     def _run(self) -> None:
+        """Supervisor: every ``DEVICE_POLL`` seconds checks which output device is the default and, when it
+        changes (Bluetooth headset connected, speakers unplugged, user picks another output...), starts a
+        fresh capture on the new one.  Each capture runs in its own thread because a loopback recording
+        can block for as long as its device is silent; the supervisor must never wait on it."""
         try:
             import soundcard as sc
         except Exception:
@@ -158,23 +166,59 @@ class Analyzer:
             self.message = "Pacote de áudio ausente (pip install soundcard). O visualizador ficará parado."
             log.info("soundcard is not installed; visualizer disabled")
             return
+        current = None  # (device key, stop event, thread)
         while not self._stop.is_set():
             try:
                 speaker = sc.default_speaker()
+                key = (str(getattr(speaker, "id", "")), str(speaker.name))
+            except Exception as e:  # no output device at all right now
+                if current:
+                    current[1].set()
+                    current = None
+                self.state, self.message = "error", f"Sem dispositivo de áudio: {str(e)[:80]}"
+                self._stop.wait(2.0)
+                continue
+            if current is None or current[0] != key or not current[2].is_alive():
+                if current:
+                    current[1].set()  # leaves the old device; if it is blocked it just ends when it wakes up
+                    if current[0] != key:
+                        log.info("default audio device changed: %s -> %s", current[0][1], key[1])
+                stop = threading.Event()
+                th = threading.Thread(target=self._capture, args=(sc, speaker, stop), name="audio-capture", daemon=True)
+                self.device = key[1]
+                th.start()
+                current = (key, stop, th)
+            self._stop.wait(DEVICE_POLL)
+        if current:
+            current[1].set()
+
+    def _capture(self, sc, speaker, stop: threading.Event) -> None:
+        def mine() -> bool:  # a capture that was replaced must not touch the shared state any more
+            return not stop.is_set() and not self._stop.is_set()
+
+        try:
+            try:
                 mic = sc.get_microphone(id=str(speaker.name), include_loopback=True)
-                rate = 48000
-                with mic.recorder(samplerate=rate, channels=2, blocksize=BLOCK) as rec:
-                    self.state, self.message = "ok", "Capturando o áudio do computador."
-                    while not self._stop.is_set():
-                        if self.clock() - self.last_touch > IDLE_SECONDS:
+            except Exception:
+                mic = sc.get_microphone(id=str(speaker.id), include_loopback=True)
+            rate = 48000
+            with mic.recorder(samplerate=rate, channels=2, blocksize=BLOCK) as rec:
+                if mine():
+                    self.state, self.message = "ok", f"Capturando o áudio de: {speaker.name}"
+                while mine():
+                    if self.clock() - self.last_touch > IDLE_SECONDS:
+                        if mine():
                             self.state, self.message = "idle", "Visualizador em espera (fora da tela)."
-                            self._stop.wait(0.3)
-                            continue
-                        self.process(rec.record(numframes=BLOCK), rate)
-            except Exception as e:  # no device, device changed, driver hiccup...
+                        stop.wait(0.3)
+                        continue
+                    data = rec.record(numframes=BLOCK)
+                    if mine():
+                        self.process(data, rate)
+        except Exception as e:  # device removed mid-capture, driver hiccup...
+            if mine():
                 self.state, self.message = "error", f"Sem captura de áudio: {str(e)[:80]}"
                 log.warning("audio capture failed: %s", e)
-                self._stop.wait(3.0)
+                stop.wait(2.0)  # the supervisor starts a new one afterwards
 
 
 _instance: Analyzer | None = None

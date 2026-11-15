@@ -1,0 +1,13 @@
+# Opcional: módulo Música e Notificações. Sem estes pacotes o resto do programa funciona normalmente.
+# Captura do áudio que está tocando (visualizador):
+soundcard>=0.4.3; sys_platform == "win32"
+# "O que está tocando" (título/artista) via Windows; sem isso, só o Spotify é lido pelo título da janela:
+winrt-runtime; sys_platform == "win32"
+winrt-Windows.Foundation; sys_platform == "win32"
+winrt-Windows.Foundation.Collections; sys_platform == "win32"
+winrt-Windows.Storage.Streams; sys_platform == "win32"
+winrt-Windows.Media.Control; sys_platform == "win32"
+# Notificações do Windows (avisos de WhatsApp Web, Discord etc.); sem isso, só o contador no título da aba é usado:
+winrt-Windows.UI.Notifications; sys_platform == "win32"
+winrt-Windows.UI.Notifications.Management; sys_platform == "win32"
+winrt-Windows.ApplicationModel; sys_platform == "win32"

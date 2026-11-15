@@ -61,6 +61,7 @@ DEFAULT_THEME = {
 DEFAULT_DEVICE = {
     "port": "auto", "orientation": "landscape", "brightness": 100,
     "fps": 20, "refresh": 2, "invert_brightness": True, "stability": 2, "align": 8, "rotate": True,
+    "notify": False, "notify_seconds": 6, "notify_apps": "", "notify_text": True,
 }
 DEFAULT_SENSORS = {"nvidia_smi": True, "lhm": True, "lhm_url": "http://127.0.0.1:8085/data.json"}
 
@@ -82,6 +83,7 @@ def O(key, label, kind, default, choices=None, **kw):
 COMMON_OPTIONS = [
     O("card", "Cartão de fundo", "choice", "tema",
       [("tema", "Seguir o tema"), ("sim", "Sempre"), ("nao", "Nunca")]),
+    O("notify", "Mostrar avisos de notificação neste card", "bool", False),
 ]
 
 
@@ -161,6 +163,10 @@ MODULES: dict[str, dict] = {
         O("sensitivity", "Sensibilidade", "int", 50, min=1, max=100),
         O("color", "Cor (vazio = padrão)", "color", ""),
     ]),
+    "notificacao": dict(label="Notificações (lista)", group="Notificações", size=(4, 3), color="#4dabf7", options=[
+        O("rows", "Quantas mostrar", "int", 3, min=1, max=6),
+        O("idle_text", "Texto quando não há nenhuma", "text", "Sem notificações"),
+    ]),
     "text": dict(label="Texto livre", group="Outros", size=(4, 1), color="text", options=[
         O("text", "Texto (aceita {cpu:.0f} {gpu_temp:.0f} ...)", "text", "Meu texto"),
         O("size", "Tamanho (0 = automático)", "int", 0, min=0, max=90),
@@ -230,6 +236,11 @@ def normalize(layout: dict | None, home: Path | None = None) -> dict:
     al = dev.get("align")
     d["align"] = al if isinstance(al, int) and not isinstance(al, bool) and al in (1, 2, 4, 8, 16) else 8
     d["rotate"] = dev.get("rotate") if isinstance(dev.get("rotate"), bool) else True
+    d["notify"] = dev.get("notify") if isinstance(dev.get("notify"), bool) else False
+    d["notify_seconds"] = _clamp(dev.get("notify_seconds"), 2, 30, 6)
+    apps = dev.get("notify_apps")
+    d["notify_apps"] = re.sub(r"[^\w ,.\-+]", "", apps)[:120] if isinstance(apps, str) else ""
+    d["notify_text"] = dev.get("notify_text") if isinstance(dev.get("notify_text"), bool) else True
     out["device"] = d
 
     sen = src.get("sensors") if isinstance(src.get("sensors"), dict) else {}
@@ -599,6 +610,10 @@ def _fit_long_date(c: _Ctx, w, h, hi) -> int:
 
 def _build_module(c: _Ctx, module: str, o: dict, x, y, w, h) -> list[dict]:
     th = c.th
+    if module == "notificacao":  # history of the latest notifications, always visible
+        return [{"type": "notice", "mode": "list", "x": int(x), "y": int(y), "w": max(1, int(w)), "h": max(1, int(h)),
+                 "rows": o["rows"], "idle_text": o["idle_text"], "size": max(12, min(18, int(h / 4.2))), "font": c.font,
+                 "font_bold": c.bold, "color": th["text"], "muted": th["muted"], "accent": th["accent"], "interval": 1}]
     if module == "visualizador":  # just the spectrum, as a card of its own
         return [_viz_widget(c, o, x, y, w, h, _module_color(c, module, o))]
     if module == "musica":
@@ -697,6 +712,12 @@ def slot_widgets(slot: dict, c: _Ctx) -> list[dict]:
     px, py = x + pad, y + pad
     pw, ph = w - 2 * pad, h - 2 * pad
     out += _build_module(c, slot["module"], o, px, py, pw, ph)
+    if o.get("notify") and slot["module"] != "notificacao":
+        # drawn last, so it covers the card while a notification is fresh and is invisible otherwise
+        out.append({"type": "notice", "mode": "alert", "x": x + 2, "y": y + 2, "w": max(1, w - 4), "h": max(1, h - 4),
+                    "size": max(12, min(18, int(h / 6.5))), "font": c.font, "font_bold": c.bold, "color": th["text"],
+                    "muted": th["muted"], "accent": th["accent"], "fill": th["card"]["color"],
+                    "radius": th["card"]["radius"], "interval": 0.5})
     return out
 
 
@@ -720,6 +741,8 @@ def to_config(layout: dict, home: Path) -> dict:
         "device": {"type": "rev_a", "port": dev["port"], "orientation": dev["orientation"],
                    "brightness": dev["brightness"], "fps": dev["fps"], "invert_brightness": dev["invert_brightness"],
                    "align": dev["align"], "stability": dev["stability"], "rotate": dev["rotate"]},
+        "notifications": {"enabled": dev["notify"], "seconds": dev["notify_seconds"], "apps": dev["notify_apps"],
+                          "show_text": dev["notify_text"]},
         "sensors": lay["sensors"],
         "display": {"background": bg["color"], "decimal": "," if th["decimal_comma"] else "."},
         "page": pages,

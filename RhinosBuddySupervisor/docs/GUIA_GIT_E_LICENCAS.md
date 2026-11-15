@@ -115,13 +115,13 @@ o `build_exe.bat` já faz isso gerando `THIRD_PARTY_LICENSES.txt` na pasta do ex
 
 1. No Windows, dê duplo clique em `build_exe.bat`. Ele instala as dependências, gera `dist\RhinosBuddySupervisor\RhinosBuddySupervisor.exe` e coloca `LICENSE`,
    `THIRD_PARTY_NOTICES.md` e `THIRD_PARTY_LICENSES.txt` na mesma pasta. Teste abrindo o `.exe` antes de publicar.
-2. Compacte a pasta inteira `dist\RhinosBuddySupervisor` em `RhinosBuddySupervisor-v0.1.0-windows.zip`.
+2. Compacte a pasta inteira `dist\RhinosBuddySupervisor` em `RhinosBuddySupervisor-v1.0.6-windows.zip`.
 3. Crie a marca de versão:
    ```powershell
-   git tag -a v0.1.0 -m "Versão 0.1.0"
-   git push origin v0.1.0
+   git tag -a v1.0.6 -m "Versão 1.0.6"
+   git push origin v1.0.6
    ```
-4. No GitHub: **Releases → Draft a new release**, escolha a tag `v0.1.0`, escreva as novidades e **anexe o zip**. Avise que o Windows (SmartScreen) pode mostrar
+4. No GitHub: **Releases → Draft a new release**, escolha a tag `v1.0.6`, escreva as novidades e **anexe o zip**. Avise que o Windows (SmartScreen) pode mostrar
    "aplicativo não reconhecido" porque o executável não é assinado; isso é normal para programas novos e independentes.
 
 ---
@@ -135,7 +135,7 @@ git commit -m "Descreve o que mudou"
 git push
 ```
 - Faça commits pequenos, um assunto por vez. Para testar algo arriscado: `git switch -c minha-ideia`, e depois abra um Pull Request.
-- Nova versão: aumente `version` em `pyproject.toml` e `rhinos_buddy/__init__.py`, faça commit, gere o `.exe` e repita a Parte 6 com a tag nova.
+- Nova versão: aumente `version` em `pyproject.toml` e `__version__`/`__version_title__` em `rhinos_buddy/__init__.py` (o título curto aparece na aba Sistema), faça commit, gere o `.exe` e repita a Parte 6 com a tag nova.
 - Se alguém mandar código para o projeto, ele passa a ser licenciado sob a MIT também (é o padrão do GitHub); confira de onde veio antes de aceitar.
 - Se um dia você commitar algo por engano (senha, arquivo de terceiros), **não basta apagar no commit seguinte**: o histórico guarda. Avise-me e eu explico como remover.
 

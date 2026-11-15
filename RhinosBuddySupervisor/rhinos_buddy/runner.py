@@ -13,7 +13,7 @@ import threading
 import time
 from pathlib import Path
 
-from . import appdata
+from . import appdata, notifications
 from . import layout as L
 from .devices import RevADisplay, TeeDisplay
 from .engine import Engine
@@ -56,8 +56,18 @@ class Runner:
     def _build_all(self) -> None:
         self.metrics = Metrics(self.layout["sensors"])
         self.metrics.set_stability(self.layout["device"]["stability"])
+        self._configure_notifier(self.layout["device"])
         self.tee = TeeDisplay(self.layout["device"]["orientation"])
         self._build_engine()
+
+    @staticmethod
+    def _configure_notifier(d: dict) -> None:
+        notifications.get_notifier().configure(d["notify"], d["notify_apps"], d["notify_seconds"], d["notify_text"])
+
+    def notify_test(self) -> None:
+        """The "Testar" button: shows a sample notification even if the feature is still switched off."""
+        notifications.get_notifier().push("Rhino's Buddy Supervisor", "Teste de notificação",
+                                          "Se você está vendo este aviso, os cards com notificação funcionam.", force=True)
 
     def _build_engine(self) -> None:
         cfg = L.to_config(self.layout, self.home)
@@ -80,6 +90,7 @@ class Runner:
                 pass
         if self.metrics:
             self.metrics.stop()
+        notifications.shutdown()
 
     def apply(self, layout: dict) -> dict:
         """Validate ``layout``, schedule it for the screen thread, return the normalised version."""
@@ -101,6 +112,7 @@ class Runner:
         with self._lock:
             st = dict(self._status)
         st["usb_kbs"] = round(self._usb_kbs, 1)
+        st["notifications"] = notifications.get_notifier().status()
         return st
 
     def preview_png(self) -> bytes:
@@ -132,6 +144,7 @@ class Runner:
             self.metrics.stop()
             self.metrics = Metrics(new["sensors"])
         self.metrics.set_stability(nd["stability"])
+        self._configure_notifier(nd)
         if od["orientation"] != nd["orientation"]:
             hw = self.tee.hw
             hw_bytes = self.tee.hw_bytes

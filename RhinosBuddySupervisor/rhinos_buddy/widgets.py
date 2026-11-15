@@ -45,6 +45,7 @@ class Context:
     decimal: str = "."  # "," for Brazilian-style numbers (11,4 GB)
     audio: object = None       # audio.Analyzer (tests inject a fake; default is the shared one)
     nowplaying: object = None  # nowplaying.NowPlaying (same idea)
+    notifier: object = None    # notifications.Notifier (same idea)
 
 
 _font_cache: dict = {}
@@ -684,6 +685,24 @@ class VisualizerWidget(Widget):
         return big.resize((self.w, self.h), Image.LANCZOS)
 
 
+def _wrap_lines(d, text: str, font, width: int, max_lines: int) -> list[str]:
+    """Word wrap into at most ``max_lines`` lines; the last one ends with an ellipsis when text is left over."""
+    words, lines, cur = text.split(), [], ""
+    for w in words:
+        trial = f"{cur} {w}".strip()
+        if d.textlength(trial, font=font) <= width or not cur:
+            cur = trial
+        else:
+            lines.append(cur)
+            cur = w
+    if cur:
+        lines.append(cur)
+    if len(lines) > max_lines:
+        lines = lines[:max_lines]
+        lines[-1] = _ellipsize(d, lines[-1] + "…", font, width) if not lines[-1].endswith("…") else lines[-1]
+    return [_ellipsize(d, ln, font, width) for ln in lines]
+
+
 def _mmss(seconds: float) -> str:
     s = max(0, int(seconds))
     return f"{s // 60}:{s % 60:02d}" if s < 3600 else f"{s // 3600}:{s // 60 % 60:02d}:{s % 60:02d}"
@@ -843,6 +862,109 @@ class NowPlayingWidget(Widget):
         return img
 
 
+class NoticeWidget(Widget):
+    """Notifications.
+
+    ``mode`` = ``alert``: an opaque card drawn **over** another card while a notification is fresh
+    (``Notifier.seconds``), completely transparent otherwise - so the card underneath comes back by itself.
+    ``mode`` = ``list``: the last few notifications, always visible."""
+
+    type_name = "notice"
+
+    def __init__(self, cfg, ctx):
+        super().__init__(cfg, ctx)
+        self.mode = cfg.get("mode", "alert")
+        self._shown = None
+
+    def _source(self):
+        if self.ctx.notifier is not None:
+            return self.ctx.notifier
+        from . import notifications
+
+        return notifications.get_notifier()
+
+    def update(self) -> bool:
+        n = self._source()
+        if self.mode == "alert":
+            ev = n.active()
+            key = ev["id"] if ev else None
+        else:
+            key = tuple(e["id"] for e in n.recent(int(self.cfg.get("rows", 3))))
+        changed = key != self._shown
+        self._shown = key
+        return changed
+
+    @staticmethod
+    def _dot(d, x, y, r, app, accent):
+        hue = sum(map(ord, app or "?")) % 360
+        col = ImageColor.getrgb(f"hsl({hue}, 65%, 55%)") if app else accent
+        d.ellipse((x, y, x + 2 * r, y + 2 * r), fill=col)
+        d.text((x + r, y + r), (app or "?")[:1].upper(), font=load_font(None, max(8, int(r * 1.3))), fill=(255, 255, 255), anchor="mm")
+
+    def render(self):
+        n = self._source()
+        img, d = self.new_layer()
+        size = int(self.cfg.get("size", 16))
+        bold = load_font(self.cfg.get("font_bold") or self.cfg.get("font"), size, self.ctx.base_dir)
+        reg = load_font(self.cfg.get("font"), max(9, round(size * 0.8)), self.ctx.base_dir)
+        fg, muted = color(self.cfg.get("color", "white")), color(self.cfg.get("muted", "#8b95a7"))
+        accent = color(self.cfg.get("accent", "#4dabf7"))
+        if self.mode == "alert":
+            ev = n.active()
+            if ev is None:
+                return img  # fully transparent: the card underneath shows again
+            d.rounded_rectangle((0, 0, self.w - 1, self.h - 1), int(self.cfg.get("radius", 10)),
+                                fill=color(self.cfg.get("fill", "#161b26")) + (255,), outline=accent + (255,), width=2)
+            self._draw_event(d, ev, 8, 6, self.w - 16, self.h - 12, bold, reg, fg, muted, accent, size)
+            return img
+        evs = n.recent(int(self.cfg.get("rows", 3)))
+        if not evs:
+            text = _ellipsize(d, self.cfg.get("idle_text", "Sem notificações"), reg, self.w)
+            d.text((0, (self.h - reg.size) // 2), text, font=reg, fill=muted)
+            return img
+        row_h = round(bold.size * 1.3 + reg.size * 1.25) + 10
+        for i, ev in enumerate(evs):
+            y = i * row_h
+            if y + row_h - 4 > self.h and i:
+                break
+            self._draw_row(d, ev, 0, y, self.w, row_h - 4, bold, reg, fg, muted, accent)
+        return img
+
+    def _draw_row(self, d, ev, x, y, w, h, bold, reg, fg, muted, accent):
+        """History row: coloured initial, then "App · title" and, below, the message on one line."""
+        r = max(8, h // 2 - 1)
+        self._dot(d, x, y + (h - 2 * r) // 2, r, ev["app"], accent)
+        tx = x + 2 * r + 8
+        head = f"{ev['app']} · {ev['title']}" if ev["title"] else ev["app"]
+        d.text((tx, y), _ellipsize(d, head, bold, w - (tx - x)), font=bold, fill=fg)
+        if ev["body"]:
+            d.text((tx, y + round(bold.size * 1.3)), _ellipsize(d, ev["body"], reg, w - (tx - x)), font=reg, fill=muted)
+
+    def _draw_event(self, d, ev, x, y, w, h, bold, reg, fg, muted, accent, size, compact=False):
+        app, title, body = ev["app"], ev["title"], ev["body"]
+        if h < 40:  # one line: coloured initial, then "title body" (or the app name)
+            r = max(7, int(h / 2) - 1)
+            self._dot(d, x, y + (h - 2 * r) // 2, r, app, accent)
+            text = " ".join(t for t in (title or app, body) if t)
+            d.text((x + 2 * r + 8, y + h / 2), _ellipsize(d, text, bold, w - 2 * r - 8), font=bold, fill=fg, anchor="lm")
+            return
+        r = max(10, min(18, int(h * 0.22)))
+        self._dot(d, x, y + 2, r, app, accent)
+        tx = x + 2 * r + 10
+        tw = w - (tx - x)
+        d.text((tx, y + 2 + r), _ellipsize(d, app, reg, tw), font=reg, fill=muted, anchor="lm")
+        used = y + 2 * r + 6
+        if title:
+            d.text((tx, used), _ellipsize(d, title, bold, tw), font=bold, fill=fg)
+            used += round(bold.size * 1.3)
+        if body:
+            line_h = round(reg.size * 1.25)
+            room = max(1, int((y + h - used) // line_h))
+            for line in _wrap_lines(d, body, reg, tw, room):
+                d.text((tx, used), line, font=reg, fill=muted)
+                used += line_h
+
+
 class RectWidget(Widget):
     """Filled rounded rectangle - cards, panels, dividers."""
 
@@ -866,7 +988,7 @@ class RectWidget(Widget):
 REGISTRY = {
     c.type_name: c
     for c in (
-        TextWidget, ClockWidget, BarWidget, RadialWidget, VisualizerWidget, NowPlayingWidget, GraphWidget, ImageWidget, WebImageWidget,
+        TextWidget, ClockWidget, BarWidget, RadialWidget, VisualizerWidget, NowPlayingWidget, NoticeWidget, GraphWidget, ImageWidget, WebImageWidget,
         CommandWidget, FileTextWidget, HttpJsonWidget, PluginWidget, RectWidget,
     )
 }
