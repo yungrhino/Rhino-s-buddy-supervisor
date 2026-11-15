@@ -373,3 +373,21 @@ def test_rotation_can_be_turned_off(tmp_path):
     eng.pin_page(None); eng.step(101.0)            # ... and the screen goes back to page 1 afterwards
     assert eng.page_index == 0
     assert L.normalize({"device": {"rotate": "x"}})["device"]["rotate"] is True
+
+
+# --------------------------------------------------------------------------- standalone visualizer card
+def test_standalone_visualizer_module(tmp_path):
+    mod = [m for m in L.catalog()["modules"] if m["id"] == "visualizador"]
+    assert len(mod) == 1 and mod[0]["group"] == "Música"
+    keys = {o["key"] for o in mod[0]["options"]}
+    assert {"viz_style", "bars", "sensitivity", "color"} <= keys and "show_track" not in keys
+    lay = L.normalize({"pages": [{"slots": [
+        {"module": "visualizador", "col": 0, "row": 0, "w": 4, "h": 2, "options": {"viz_style": "circular", "bars": 99}}]}]}, tmp_path)
+    o = lay["pages"][0]["slots"][0]["options"]
+    assert o["viz_style"] == "circular" and o["bars"] == 32
+    wd = L.to_config(lay, tmp_path)["page"][0]["widget"]
+    assert [w["type"] for w in wd] == ["visualizer"] and wd[0]["style"] == "circular"
+    lay2, eng, disp = build([{"module": "visualizador", "col": 0, "row": 0, "w": 4, "h": 2, "options": {}}], tmp_path)
+    eng.step(1.0); eng.step(2.0)
+    px = np.asarray(disp.frame.convert("RGB"))
+    assert (px.sum(axis=2) > 120).any() and not (px[:, 170:].sum(axis=2) > 120).any()

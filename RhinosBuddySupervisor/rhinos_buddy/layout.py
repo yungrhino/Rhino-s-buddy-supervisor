@@ -154,6 +154,13 @@ MODULES: dict[str, dict] = {
         O("align", "Alinhamento do texto", "choice", "left", [("left", "Esquerda"), ("center", "Centro"), ("right", "Direita")]),
         O("color", "Cor (vazio = padrão)", "color", ""),
     ]),
+    "visualizador": dict(label="Visualizador de áudio", group="Música", size=(4, 2), color="#b197fc", options=[
+        O("viz_style", "Estilo", "choice", "barras", [
+            ("barras", "Barras"), ("espelho", "Barras espelhadas"), ("circular", "Circular"), ("pulso", "Pulso (batida)")]),
+        O("bars", "Quantidade de barras", "int", 12, min=4, max=32),
+        O("sensitivity", "Sensibilidade", "int", 50, min=1, max=100),
+        O("color", "Cor (vazio = padrão)", "color", ""),
+    ]),
     "text": dict(label="Texto livre", group="Outros", size=(4, 1), color="text", options=[
         O("text", "Texto (aceita {cpu:.0f} {gpu_temp:.0f} ...)", "text", "Meu texto"),
         O("size", "Tamanho (0 = automático)", "int", 0, min=0, max=90),
@@ -592,6 +599,8 @@ def _fit_long_date(c: _Ctx, w, h, hi) -> int:
 
 def _build_module(c: _Ctx, module: str, o: dict, x, y, w, h) -> list[dict]:
     th = c.th
+    if module == "visualizador":  # just the spectrum, as a card of its own
+        return [_viz_widget(c, o, x, y, w, h, _module_color(c, module, o))]
     if module == "musica":
         return _build_music(c, o, x, y, w, h, _module_color(c, module, o))
     col = _module_color(c, module, o)

@@ -31,6 +31,7 @@ Sem gerar o `.exe`, `Iniciar Rhinos Buddy Supervisor.bat` abre o mesmo programa 
   Sem eles, o Spotify ainda é lido pelo título da janela e o visualizador fica parado, com um aviso.
   No módulo, "Aparência do que está tocando" tem o modo **Card expandido**: capa do álbum, título, artista e barra
   de progresso com os tempos (capa e tempos vêm do Windows e dependem do player informá-los; o Spotify informa).
+  O **Visualizador de áudio** também existe como card separado (grupo "Música" na lista de módulos), só com o espectro, sem o título da música.
   A captura só roda enquanto há um visualizador visível na tela. Por causa do link USB lento, o programa limita
   sozinho a taxa de redesenho pelo tamanho da área: slots pequenos (ex. 2x1 células) são mais fluidos que grandes.
 
