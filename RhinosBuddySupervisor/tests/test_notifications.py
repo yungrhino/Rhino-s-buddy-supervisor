@@ -17,8 +17,8 @@ class Clock:
 
 def notifier(**kw):
     n = N.Notifier(clock=Clock(), **kw)
+    n.start = lambda: None  # no polling thread in unit tests (it would race with the test)
     n.configure(True, "", 6, True)
-    n._stop.set()  # no polling thread in unit tests
     return n
 
 

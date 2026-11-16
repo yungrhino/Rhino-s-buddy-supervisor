@@ -184,3 +184,37 @@ def test_radial_ring_moves_with_text_position(tmp_path):
     for (w, h) in ((4, 3), (6, 3)):       # stacked and wide rings
         pos = {al: _texts("cpu", al, w, h, radial=True, tmp_path=tmp_path)[1][0]["x"] for al in ("left", "center", "right")}
         assert pos["left"] < pos["center"] <= pos["right"] or pos["left"] <= pos["center"] < pos["right"], (w, h, pos)
+
+
+# ---- date card: the text must fit for every weekday and month, at any card size
+
+def _date_widgets(tmp_path, style, w, h, font="Verdana"):
+    lay = L.normalize({"theme": {"font": font}, "pages": [{"slots": [
+        {"module": "date", "col": 0, "row": 0, "w": w, "h": h, "options": {"style": style}}]}]}, tmp_path)
+    return [x for x in L.to_config(lay, tmp_path)["page"][0]["widget"] if x["type"] == "text"]
+
+
+def test_date_card_fits_every_weekday_and_month(tmp_path):
+    import datetime
+    from rhinos_buddy.widgets import load_font, pt_date_fields
+    fmt = {"{dia_semana_cap}": lambda f: f["dia_semana_cap"], "{dia} de {mes} de {ano}": lambda f: f"{f['dia']} de {f['mes']} de {f['ano']}",
+           "{now:%d/%m/%Y}": lambda f: "00/00/0000", "{dia_semana_curto}, {dia} {mes_curto}": lambda f: f"{f['dia_semana_curto']}, {f['dia']} {f['mes_curto']}"}
+    days = [datetime.datetime(2026, 11, 16) + datetime.timedelta(days=i) for i in range(0, 366)]
+    for font in ("Verdana", "Arial", "Consolas"):
+        for style in ("completo", "extenso", "semana_curto", "curto"):
+            for w, h in [(4, 2), (3, 2), (4, 1), (2, 1), (2, 2), (6, 3)]:
+                for wd in _date_widgets(tmp_path, style, w, h, font):
+                    f = load_font(wd["font"], wd["size"], None)
+                    widest = max(f.getlength(fmt[wd["text"]](pt_date_fields(d))) for d in days)
+                    if wd["size"] > 9:  # 9 is the floor; below it the widget itself shrinks the text
+                        assert widest <= wd["w"], (font, style, w, h, wd["text"], wd["size"], widest, wd["w"])
+
+
+def test_date_widget_shrinks_instead_of_cutting_the_text(tmp_path):
+    from rhinos_buddy.widgets import Context, TextWidget
+    wd = {"type": "text", "x": 0, "y": 0, "w": 120, "h": 40, "text": "Segunda-feira", "size": 30, "font": "Verdana",
+          "color": "#ffffff", "align": "left", "valign": "middle", "fit": True}
+    ctx = Context(metrics=None, base_dir=tmp_path)
+    img = TextWidget(wd, ctx)._shrink_to_fit(TextWidget(wd, ctx).font(), "Segunda-feira", __import__("PIL.ImageDraw", fromlist=["x"]).Draw(__import__("PIL.Image", fromlist=["x"]).new("RGBA", (120, 40))))
+    assert img.getlength("Segunda-feira") <= 120
+    assert all(x.get("fit") for x in _date_widgets(tmp_path, "completo", 4, 2))

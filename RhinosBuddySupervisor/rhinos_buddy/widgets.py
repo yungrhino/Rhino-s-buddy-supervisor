@@ -183,6 +183,8 @@ class TextWidget(Widget):
         img, d = self.new_layer()
         font = self.font()
         text = self._shown if self._shown is not None else self.current_text()
+        if self.cfg.get("fit") and not self.cfg.get("wrap"):
+            font = self._shrink_to_fit(font, text, d)
         if self.cfg.get("wrap"):
             text = self._wrap(text, font, d)
         fill = color(self.cfg.get("color", "white"))
@@ -194,6 +196,14 @@ class TextWidget(Widget):
         y = {"top": 0, "middle": (self.h - th) // 2, "bottom": self.h - th}[valign] - top
         d.multiline_text((x, y), text, font=font, fill=fill, align=align)
         return img
+
+    def _shrink_to_fit(self, font, text, d):
+        """Never cut a single-line text at the edge: if today's text is wider than the box, use a smaller size."""
+        size = int(self.cfg.get("size", 20))
+        while size > 8 and d.textlength(text, font=font) > self.w:
+            size -= 1
+            font = load_font(self.cfg.get("font"), size, self.ctx.base_dir)
+        return font
 
     def _wrap(self, text, font, d):
         out = []

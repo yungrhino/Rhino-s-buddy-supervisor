@@ -20,7 +20,7 @@ import re
 from pathlib import Path
 
 from . import protocol as P
-from .widgets import load_font
+from .widgets import MONTHS, MONTHS_SHORT, WEEKDAYS, WEEKDAYS_SHORT, load_font
 
 CELL = 40
 MAX_PAGES = 8
@@ -600,7 +600,13 @@ def _build_music(c: _Ctx, o: dict, x, y, w, h, col) -> list[dict]:
     return out
 
 
-_WIDE_MONTHS = ("janeiro", "fevereiro", "março", "setembro", "novembro", "dezembro")
+_WIDE_MONTHS = tuple(MONTHS)
+
+
+def _widest(font_file: str, samples) -> str:
+    """The sample that is widest in this font (names differ a lot: "sex" vs "seg", "maio" vs "setembro")."""
+    f = load_font(font_file, 40, None)
+    return max(samples, key=lambda t: f.getlength(t))
 
 
 def _fit_long_date(c: _Ctx, w, h, hi) -> int:
@@ -671,17 +677,27 @@ def _build_module(c: _Ctx, module: str, o: dict, x, y, w, h) -> list[dict]:
             st = "semana_curto"
         if two:
             h1 = h * 0.52
-            s1 = fit_size(c.font, "quarta-feira", w, h1 * 0.9, hi=30)
+            s1 = fit_size(c.font, _widest(c.font, [d.capitalize() for d in WEEKDAYS]), w, h1 * 0.9, hi=30)
             s2 = _fit_long_date(c, w, (h - h1) * 0.9, 24)
-            return [_text(c, x, y, w, h1, "{dia_semana_cap}", s1, th["text"] if not o["color"] else col, al, interval=60),
-                    _text(c, x, y + h1, w, h - h1, "{dia} de {mes} de {ano}", s2, th["muted"] if not o["color"] else col, al, interval=60)]
+            top = _text(c, x, y, w, h1, "{dia_semana_cap}", s1, th["text"] if not o["color"] else col, al, interval=60)
+            bottom = _text(c, x, y + h1, w, h - h1, "{dia} de {mes} de {ano}", s2, th["muted"] if not o["color"] else col, al, interval=60)
+            top["fit"] = bottom["fit"] = True
+            return [top, bottom]
         tpl, sample = {
             "extenso": ("{dia} de {mes} de {ano}", "00 de fevereiro de 2026"),
             "curto": ("{now:%d/%m/%Y}", "00/00/0000"),
             "semana_curto": ("{dia_semana_curto}, {dia} {mes_curto}", "qua, 28 set"),
         }[st]
-        size = _fit_long_date(c, w, h * 0.9, 30) if st == "extenso" else fit_size(c.font, sample, w, h * 0.9, hi=30)
-        return [_text(c, x, y, w, h, tpl, size, col, al, interval=60)]
+        if st == "extenso":
+            size = _fit_long_date(c, w, h * 0.9, 30)
+        elif st == "semana_curto":
+            wide = _widest(c.font, [f"{d}, 00 {m}" for d in WEEKDAYS_SHORT for m in MONTHS_SHORT])
+            size = fit_size(c.font, wide, w, h * 0.9, hi=30)
+        else:
+            size = fit_size(c.font, sample, w, h * 0.9, hi=30)
+        wd = _text(c, x, y, w, h, tpl, size, col, al, interval=60)
+        wd["fit"] = True
+        return [wd]
     if module == "text":
         size = o["size"] or fit_size(c.bold, o["text"] or " ", w, h * 0.95, hi=48)
         d = _text(c, x, y, w, h, o["text"], size, col, o["align"], bold=True)

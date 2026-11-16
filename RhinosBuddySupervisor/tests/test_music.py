@@ -522,3 +522,53 @@ def test_visualizer_recovers_when_the_device_disappears_and_returns(monkeypatch)
     finally:
         world.release.set()
         a.stop()
+
+
+# ---- progress counter: stays in step with the real playback
+
+def test_timeline_position_adds_the_time_since_windows_took_the_snapshot():
+    from datetime import datetime, timedelta, timezone
+    now = datetime(2026, 11, 16, 12, 0, 10, tzinfo=timezone.utc)
+    snap = now - timedelta(seconds=4)
+    assert nowplaying.timeline_position(60.0, 200.0, snap, now) == 64.0
+    assert nowplaying.timeline_position(60.0, 200.0, snap, now, rate=2.0) == 68.0
+    assert nowplaying.timeline_position(198.0, 200.0, snap, now) == 200.0           # never past the end
+    assert nowplaying.timeline_position(60.0, 200.0, None, now) == 60.0             # no stamp: as reported
+    assert nowplaying.timeline_position(60.0, 200.0, now + timedelta(seconds=9), now) == 60.0  # stamp in the future
+    naive = datetime(2026, 11, 16, 12, 0, 6)                                        # naive stamp is read as UTC
+    assert nowplaying.timeline_position(60.0, 200.0, naive, now) == 64.0
+
+
+def _poll_sequence(positions, step=2.0):
+    clock = [100.0]
+    seq = iter(positions)
+    n = nowplaying.NowPlaying(fetch=lambda: {"title": "t", "artist": "a", "playing": True,
+                                             "position": next(seq), "duration": 155.0})
+    n.clock = lambda: clock[0]
+    shown = []
+    for _ in positions:
+        n.poll_once()
+        shown.append(n.data["position"])
+        clock[0] += step
+    return shown
+
+
+def test_counter_does_not_jump_when_the_player_reports_in_coarse_steps():
+    # real time moves 2 s per poll, the player's reading wobbles by about a second around the truth
+    shown = _poll_sequence([86.0, 88.9, 89.6, 92.4, 93.8, 96.3])
+    steps = [b - a for a, b in zip(shown, shown[1:])]
+    assert all(1.0 <= s <= 3.0 for s in steps), shown   # roughly 2 s per 2 s poll, no 0 s / 4 s lurches
+
+
+def test_counter_follows_a_real_seek():
+    shown = _poll_sequence([30.0, 32.0, 120.0, 122.0])
+    assert shown[2] == 120.0 and shown[3] == 122.0
+
+
+def test_counter_resets_on_a_new_track():
+    clock = [0.0]
+    tracks = iter([{"title": "A", "position": 100.0}, {"title": "B", "position": 3.0}])
+    n = nowplaying.NowPlaying(fetch=lambda: {**next(tracks), "artist": "x", "playing": True, "duration": 200.0})
+    n.clock = lambda: clock[0]
+    n.poll_once(); clock[0] += 2; n.poll_once()
+    assert n.data["position"] == 3.0
