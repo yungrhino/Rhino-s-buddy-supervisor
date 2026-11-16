@@ -225,3 +225,91 @@ def test_long_notification_text_never_leaves_its_box(tmp_path):
     outside[40:120, 40:160] = 0
     # nothing bright outside the card's box (the rest of the screen is the dark background)
     assert (outside.sum(axis=2) > 300).sum() == 0
+
+
+# --------------------------------------------------------------------------- unread list, filters, retry
+
+def test_list_shows_what_is_already_waiting_in_the_notification_center():
+    n = notifier()
+    waiting = [{"id": "1", "app": "Google Chrome", "title": "Ana", "body": "oi", "created": 10.0},
+               {"id": "2", "app": "Discord", "title": "#geral", "body": "alguém te chamou", "created": 20.0}]
+    assert n.ingest(waiting) == 0 and n.active() is None        # not "new": no pop-up over the cards...
+    shown = n.listing(3)
+    assert [e["title"] for e in shown] == ["#geral", "Ana"]     # ...but listed, newest first
+    n.ingest([waiting[0]])                                      # the Discord one was opened -> gone from the list
+    assert [e["title"] for e in n.listing(3)] == ["Ana"]
+    n.ingest([])
+    assert n.listing(3) == []                                   # nothing pending, nothing arrived since start
+
+
+def test_list_falls_back_to_what_arrived_when_nothing_is_pending():
+    n = notifier()
+    n.ingest([])
+    n.push("WhatsApp", "Bia", "e aí?")
+    assert [e["title"] for e in n.listing(3)] == ["Bia"]
+
+
+def test_app_filter_also_matches_title_and_text_because_web_apps_arrive_as_the_browser():
+    n = notifier()
+    n.configure(True, "whatsapp", 6, True)
+    assert n.push("Google Chrome", "WhatsApp Web", "Ana: oi") is not None
+    assert n.push("Google Chrome", "Outro site", "nada a ver") is None
+    n.ingest([{"id": "1", "app": "Google Chrome", "title": "Outro site", "body": "x"},
+              {"id": "2", "app": "Google Chrome", "title": "Ana", "body": "WhatsApp: oi"}])
+    assert [e["id"] for e in n.listing(3)] == ["2"]
+
+
+def test_privacy_mode_also_hides_the_text_in_the_list():
+    n = notifier()
+    n.configure(True, "", 6, False)
+    n.ingest([{"id": "1", "app": "WhatsApp", "title": "Ana Souza", "body": "segredo"}])
+    e = n.listing(3)[0]
+    assert e["title"] == "Nova notificação" and e["body"] == "" and "segredo" not in str(n.listing(3))
+
+
+def test_windows_source_is_tried_again_after_the_permission_is_granted(monkeypatch):
+    calls = {"n": 0, "allow": False}
+
+    def toasts():
+        calls["n"] += 1
+        if not calls["allow"]:
+            raise N.AccessDenied()
+        return [{"id": "9", "app": "Discord", "title": "oi", "body": ""}]
+    monkeypatch.setattr(N, "winrt_toasts", toasts)
+    clock = Clock()
+    n = N.Notifier(clock=clock)
+    n._titles = N.TitleCounterSource(titles=lambda: [])
+    n.start = lambda: None
+    n.configure(True, "", 6, True)
+    n.poll_once()
+    assert n.status()["state"] == "denied" and n.status()["source"] == "title"
+    n.poll_once()
+    assert calls["n"] == 1                                      # does not hammer Windows on every poll
+    calls["allow"] = True
+    clock.t += N.WINRT_RETRY + 1
+    n.poll_once()
+    assert n.status()["state"] == "ok" and n.status()["source"] == "toast" and n.status()["pending"] == 1
+
+
+def test_tab_title_counter_complements_toasts_from_other_apps(monkeypatch):
+    monkeypatch.setattr(N, "winrt_toasts", lambda: [{"id": "1", "app": "Discord", "title": "x", "body": ""}])
+    n = N.Notifier(clock=Clock())
+    n._titles = N.TitleCounterSource(titles=lambda: ["(2) WhatsApp - Google Chrome", "(1) Discord | Servidor"])
+    n.start = lambda: None
+    n.configure(True, "", 6, True)
+    n.poll_once()
+    apps = sorted(e["app"] for e in n.listing(5))
+    assert apps == ["Discord", "WhatsApp"]                      # Discord is not duplicated by its tab counter
+
+
+def test_status_reports_the_failure_reason_for_the_screen(monkeypatch):
+    def boom():
+        raise RuntimeError("falhou de verdade")
+    monkeypatch.setattr(N, "winrt_toasts", boom)
+    n = N.Notifier(clock=Clock())
+    n._titles = N.TitleCounterSource(titles=lambda: [])
+    n.start = lambda: None
+    n.configure(True, "", 6, True)
+    n.poll_once()
+    st = n.status()
+    assert st["state"] == "error" and "RuntimeError" in st["error"] and "falhou de verdade" in st["message"]

@@ -899,7 +899,7 @@ class NoticeWidget(Widget):
             ev = n.active()
             key = ev["id"] if ev else None
         else:
-            key = tuple(e["id"] for e in n.recent(int(self.cfg.get("rows", 3))))
+            key = tuple((e["app"], e["title"], e["body"]) for e in n.listing(int(self.cfg.get("rows", 3))))
         changed = key != self._shown
         self._shown = key
         return changed
@@ -927,7 +927,7 @@ class NoticeWidget(Widget):
                                 fill=color(self.cfg.get("fill", "#161b26")) + (255,), outline=accent + (255,), width=2)
             self._draw_event(d, ev, 8, 6, self.w - 16, self.h - 12, bold, reg, fg, muted, accent, size)
             return img
-        evs = n.recent(int(self.cfg.get("rows", 3)))
+        evs = n.listing(int(self.cfg.get("rows", 3)))
         if not evs:
             text = _ellipsize(d, self.cfg.get("idle_text", "Sem notificações"), reg, self.w)
             d.text((0, (self.h - reg.size) // 2), text, font=reg, fill=muted)

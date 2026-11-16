@@ -39,13 +39,17 @@ Sem gerar o `.exe`, `Iniciar Rhinos Buddy Supervisor.bat` abre o mesmo programa 
 - **Notificações (WhatsApp Web, Discord etc.):** desligadas por padrão, porque o texto de um aviso pode ser privado.
   Ligue em **Tela → Mostrar notificações do Windows na tela**. Todo card tem a opção **Mostrar avisos de notificação neste card** (nas opções dele): quando chega um
   aviso, o card dá lugar a um cartão com o app, o título e a mensagem por alguns segundos e depois volta sozinho ao
-  que estava mostrando (o visualizador volta a tocar, por exemplo). O módulo **Notificações** mostra a lista dos
-  avisos recentes. Nada é enviado para fora do computador.
+  que estava mostrando (o visualizador volta a tocar, por exemplo). O módulo **Notificações** lista o que
+  ainda está na central do Windows (os avisos que você não abriu), do mais novo para o mais antigo; quando um aviso é
+  aberto ou dispensado no Windows, ele sai da lista. Nada é enviado para fora do computador.
   - De onde vêm: da central de notificações do Windows (precisa dos pacotes de `requirements-extras.txt` e de
     *Configurações → Privacidade e segurança → Notificações → "Permitir que aplicativos acessem suas notificações"*).
     Para o WhatsApp Web, ative as notificações do site no navegador.
   - Sem permissão ou pacotes, o programa usa só o contador do título da aba (ex.: "(3) WhatsApp"), que vê apenas a
-    aba visível e não mostra quem escreveu. A mensagem em **Tela → Notificações** diz qual modo está ativo.
+    aba visível e não mostra quem escreveu. A linha de status em **Tela → Notificações** diz qual fonte está ativa, quantos avisos estão pendentes e, se algo
+    falhar, o motivo. Se você liberar a permissão depois, o programa tenta de novo sozinho em até 30 segundos.
+  - O filtro por app olha também o título e o texto: o WhatsApp Web chega como "Google Chrome" ou "Microsoft Edge",
+    então "WhatsApp" no filtro funciona.
   - Use **Testar aviso** para ver como fica sem esperar uma mensagem real. Também dá para filtrar por app e
     esconder o texto (mostrar só "Nova notificação").
 

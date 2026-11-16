@@ -23,6 +23,7 @@ from collections import deque
 log = logging.getLogger("rhinos_buddy.notifications")
 
 POLL_SECONDS = 1.5
+WINRT_RETRY = 30.0  # seconds before trying the Windows notification center again after it failed
 HISTORY = 20
 # Web apps that show "(3) Name" in the tab / window title when something is unread.
 TITLE_APPS = ("WhatsApp", "Telegram", "Discord", "Messenger", "Instagram", "Gmail", "Outlook", "Slack", "Teams")
@@ -129,8 +130,12 @@ def winrt_toasts() -> list[dict]:
                 texts = [t.text for t in binding.get_text_elements()]
             except Exception:
                 pass
+            try:
+                created = n.creation_time.timestamp()
+            except Exception:
+                created = 0.0
             out.append({"id": str(n.id), "app": app or "Notificação", "title": texts[0] if texts else "",
-                        "body": " ".join(texts[1:])})
+                        "body": " ".join(texts[1:]), "created": created})
         return out
 
     return asyncio.run(go())
@@ -158,6 +163,9 @@ class Notifier:
         self._stop = threading.Event()
         self._source = None         # "toast" | "title"
         self._titles = TitleCounterSource()
+        self.pending: list[dict] = []   # what is in the notification center right now (= not opened yet)
+        self.error = ""                 # last reason the Windows source failed, for the diagnostics line
+        self._winrt_failed_at = -1e9
 
     # ---- configuration
     def configure(self, enabled: bool, apps: str | list[str] = "", seconds: float = 6.0, show_text: bool = True) -> None:
@@ -170,6 +178,7 @@ class Notifier:
             was, self.enabled = self.enabled, bool(enabled)
             if not self.enabled:
                 self.state, self.message = "off", "Notificações desligadas."
+                self.pending = []
         if self.enabled and not was:
             self._baseline, self._seen = False, set()  # what is already in the notification center is not "new"
             self.start()
@@ -177,12 +186,17 @@ class Notifier:
             self._stop.set()
 
     # ---- events
-    def _wanted(self, app: str) -> bool:
-        return not self.apps or any(a in (app or "").lower() for a in self.apps)
+    def _wanted(self, app: str, title: str = "", body: str = "") -> bool:
+        """Filter by app name *or* text: web apps arrive as "Google Chrome" / "Microsoft Edge", so "whatsapp"
+        has to be looked for in the title and message too."""
+        if not self.apps:
+            return True
+        hay = f"{app} {title} {body}".lower()
+        return any(a in hay for a in self.apps)
 
     def push(self, app: str, title: str = "", body: str = "", force: bool = False) -> dict | None:
         """Register a notification.  ``force`` (the "Testar" button) shows it even when the feature is off."""
-        if not force and not (self.enabled and self._wanted(app)):
+        if not force and not (self.enabled and self._wanted(app, title, body)):
             return None
         if not self.show_text and not force:
             title, body = "Nova notificação", ""
@@ -197,6 +211,8 @@ class Notifier:
         """Take a snapshot of a source.  The first one is only a baseline (what is already in the notification
         center is not "new"); afterwards every id that was not there before becomes an event."""
         current = {str(i.get("id")) for i in items}
+        with self._lock:
+            self.pending = [self._pending_item(i) for i in items if self._wanted(i.get("app", ""), i.get("title", ""), i.get("body", ""))]
         new = 0
         if self._baseline:
             for it in items:
@@ -204,6 +220,21 @@ class Notifier:
                     new += 1
         self._seen, self._baseline = current, True
         return new
+
+    def _pending_item(self, it: dict) -> dict:
+        title, body = it.get("title", "") or "", it.get("body", "") or ""
+        if not self.show_text:
+            title, body = "Nova notificação", ""
+        return {"id": str(it.get("id")), "app": it.get("app") or "Notificação", "title": title, "body": body,
+                "t": float(it.get("created") or 0.0)}
+
+    def listing(self, n: int = 3) -> list[dict]:
+        """What the list card shows: the notifications still waiting in the Windows notification center (the ones
+        not opened yet, newest first); when there are none, the latest ones that arrived since the program started."""
+        with self._lock:
+            if self.pending:
+                return sorted(self.pending, key=lambda e: e["t"], reverse=True)[:n]
+            return list(self.history)[:n]
 
     def active(self, now: float | None = None) -> dict | None:
         """The newest notification that arrived less than ``seconds`` ago, else None."""
@@ -220,7 +251,8 @@ class Notifier:
             return list(self.history)[:n]
 
     def status(self) -> dict:
-        return {"enabled": self.enabled, "state": self.state, "message": self.message}
+        return {"enabled": self.enabled, "state": self.state, "message": self.message, "source": self._source or "",
+                "pending": len(self.pending), "error": self.error}
 
     # ---- polling thread
     def start(self) -> None:
@@ -240,32 +272,40 @@ class Notifier:
                 self.ingest(self.fetch())
                 self.state, self.message = "ok", "Lendo as notificações."
                 return
-            if self._source != "title":
+            retry = self._source != "title" or self.clock() - self._winrt_failed_at >= WINRT_RETRY
+            if retry:
                 try:
-                    items = winrt_toasts()
+                    toasts = winrt_toasts()
                     if self._source != "toast":
                         self._source = "toast"
                         self._baseline = False
-                    self.state, self.message = "ok", "Lendo as notificações do Windows."
-                    self.ingest(items)
+                    self.state, self.error = "ok", ""
+                    self.message = "Lendo as notificações do Windows."
+                    # web apps that only put a counter in the tab title ("(3) WhatsApp") and did not raise a toast
+                    seen = " ".join(f"{t['app']} {t['title']} {t['body']}" for t in toasts).lower()
+                    extra = [i for i in self._titles.fetch() if i["app"].lower() not in seen]
+                    self.ingest(toasts + extra)
                     return
                 except AccessDenied:
-                    self.state = "denied"
-                    self.message = ("O Windows não deixou ler as notificações. Ative em Configurações → Privacidade → "
+                    self.state, self.error = "denied", "acesso negado pelo Windows"
+                    self.message = ("O Windows não deixou ler as notificações. Ative em Configurações → Privacidade e segurança → "
                                     "Notificações → “Permitir que aplicativos acessem suas notificações”. "
                                     "Enquanto isso, só o contador no título da aba (ex.: “(3) WhatsApp”) é usado.")
-                except ImportError:
-                    self.state = "fallback"
+                except ImportError as e:
+                    self.state, self.error = "fallback", f"pacote ausente: {e}"[:120]
                     self.message = ("Pacotes de notificação ausentes (veja requirements-extras.txt). "
                                     "Usando só o contador no título da aba, ex.: “(3) WhatsApp”.")
                 except Exception as e:
-                    self.state, self.message = "error", f"Não foi possível ler as notificações do Windows: {str(e)[:80]}"
+                    self.state, self.error = "error", f"{type(e).__name__}: {e}"[:120]
+                    self.message = f"Não foi possível ler as notificações do Windows ({self.error}). Usando o contador do título da aba."
                     log.debug("winrt notifications failed: %s", e)
+                self._winrt_failed_at = self.clock()
             # fallback: unread counters in window titles
             if self._source != "title":
                 self._source, self._baseline = "title", False
             self.ingest(self._titles.fetch())
         except Exception as e:
+            self.error = f"{type(e).__name__}: {e}"[:120]
             log.debug("notification poll failed: %s", e)
 
     def _run(self) -> None:

@@ -568,7 +568,9 @@ function usbText() {
 }
 function notifText() {
   const n = (S.status || {}).notifications;
-  return n && n.enabled ? n.message : "";
+  if (!(n && n.enabled)) return "";
+  const src = n.source === "toast" ? "central do Windows" : n.source === "title" ? "título da aba" : "";
+  return n.message + (src ? " Fonte: " + src + " · " + n.pending + " pendente(s) agora." : "");
 }
 function panelTela() {
   const d = S.layout.device;
