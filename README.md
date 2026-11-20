@@ -26,13 +26,32 @@ Sem gerar o `.exe`, `Iniciar Rhinos Buddy Supervisor.bat` abre o mesmo programa 
   módulos (CPU, GPU, VRAM, RAM, disco); cada módulo ainda pode ter o seu próprio estilo nas opções dele. Há também o botão "Radial" no topo da aba Módulos e o modelo **Anéis** (Modelo → Anéis).
 - **Módulo Música:** mostra o que está tocando (título e artista) e/ou um visualizador de áudio (barras, espelhado,
   circular ou pulso na batida), com tamanho livre na grade. Cada parte liga/desliga nas opções do módulo.
-  Ele só funciona com os pacotes opcionais de `requirements-musica.txt` (`build_exe.bat` já tenta instalá-los):
+  Ele só funciona com os pacotes opcionais de `requirements-extras.txt` (`build_exe.bat` já tenta instalá-los):
   `soundcard` captura o que sai nas caixas/fones (qualquer player) e `winrt-*` lê a música atual do Windows.
   Sem eles, o Spotify ainda é lido pelo título da janela e o visualizador fica parado, com um aviso.
   No módulo, "Aparência do que está tocando" tem o modo **Card expandido**: capa do álbum, título, artista e barra
   de progresso com os tempos (capa e tempos vêm do Windows e dependem do player informá-los; o Spotify informa).
+  O **Visualizador de áudio** também existe como card separado (grupo "Música" na lista de módulos), só com o espectro, sem o título da música.
+  O visualizador acompanha o dispositivo de saída padrão do Windows: ao conectar um fone Bluetooth ou trocar de caixa, a captura muda sozinha em cerca de 1 segundo.
   A captura só roda enquanto há um visualizador visível na tela. Por causa do link USB lento, o programa limita
   sozinho a taxa de redesenho pelo tamanho da área: slots pequenos (ex. 2x1 células) são mais fluidos que grandes.
+
+- **Notificações (WhatsApp Web, Discord etc.):** desligadas por padrão, porque o texto de um aviso pode ser privado.
+  Ligue em **Tela → Mostrar notificações do Windows na tela**. Todo card tem a opção **Mostrar avisos de notificação neste card** (nas opções dele): quando chega um
+  aviso, o card dá lugar a um cartão com o app, o título e a mensagem por alguns segundos e depois volta sozinho ao
+  que estava mostrando (o visualizador volta a tocar, por exemplo). O módulo **Notificações** lista o que
+  ainda está na central do Windows (os avisos que você não abriu), do mais novo para o mais antigo; quando um aviso é
+  aberto ou dispensado no Windows, ele sai da lista. Nada é enviado para fora do computador.
+  - De onde vêm: da central de notificações do Windows (precisa dos pacotes de `requirements-extras.txt` e de
+    *Configurações → Privacidade e segurança → Notificações → "Permitir que aplicativos acessem suas notificações"*).
+    Para o WhatsApp Web, ative as notificações do site no navegador.
+  - Sem permissão ou pacotes, o programa usa só o contador do título da aba (ex.: "(3) WhatsApp"), que vê apenas a
+    aba visível e não mostra quem escreveu. A linha de status em **Tela → Notificações** diz qual fonte está ativa, quantos avisos estão pendentes e, se algo
+    falhar, o motivo. Se você liberar a permissão depois, o programa tenta de novo sozinho em até 30 segundos.
+  - O filtro por app olha também o título e o texto: o WhatsApp Web chega como "Google Chrome" ou "Microsoft Edge",
+    então "WhatsApp" no filtro funciona.
+  - Use **Testar aviso** para ver como fica sem esperar uma mensagem real. Também dá para filtrar por app e
+    esconder o texto (mostrar só "Nova notificação").
 
 - **Lista "Nesta página"** (aba Módulos): mostra tudo o que está na tela, da frente para o fundo. Clique para
   selecionar (mesmo que um módulo de tela cheia cubra os outros), reordene com ▲▼ ou use **Ocultar** para tirar
