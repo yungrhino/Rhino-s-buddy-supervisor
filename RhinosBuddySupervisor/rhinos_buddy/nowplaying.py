@@ -33,24 +33,26 @@ def parse_spotify_title(title: str) -> dict:
     return {"title": song.strip(), "artist": artist.strip(), "app": "Spotify", "playing": True}
 
 
-def timeline_position(position: float, end: float, last_updated, now, rate: float = 1.0) -> float:
-    """Where the track really is *now*.
+FRESH_AGE = 5.0  # a position stamped less than this long ago is trusted as "the player just told us"
 
-    Windows reports the position as a snapshot taken at ``last_updated`` (players only refresh it every few
-    seconds, or when you seek/pause), so the time elapsed since then must be added; otherwise the counter is
-    always a bit behind and jumps every time it is re-read.
-    """
-    elapsed = 0.0
-    if last_updated is not None:
-        try:
-            if getattr(last_updated, "tzinfo", None) is None and getattr(now, "tzinfo", None) is not None:
-                last_updated = last_updated.replace(tzinfo=now.tzinfo)
-            elapsed = (now - last_updated).total_seconds()
-        except Exception:
-            elapsed = 0.0
-    elapsed = max(0.0, min(elapsed, 6 * 3600.0))  # a clock that went backwards / absurd stamps are ignored
-    pos = position + elapsed * (rate if rate and rate > 0 else 1.0)
-    return max(0.0, min(pos, end))
+
+def timeline_age(last_updated, now=None) -> float | None:
+    """Seconds since Windows took the position snapshot, or None when the stamp cannot be trusted
+    (missing, in another time zone, from the future, absurdly old)."""
+    if last_updated is None:
+        return None
+    try:
+        from datetime import datetime, timezone
+
+        if getattr(last_updated, "tzinfo", None) is None:   # naive stamp: assume the PC's local clock
+            age = ((now or datetime.now()) - last_updated).total_seconds()
+        else:
+            age = ((now or datetime.now(timezone.utc)) - last_updated).total_seconds()
+    except Exception:
+        return None
+    if -2.0 <= age < 0:
+        return 0.0   # small clock skew
+    return age if 0 <= age <= 6 * 3600.0 else None
 
 
 def _winrt_fetch() -> dict:
@@ -86,10 +88,15 @@ def _winrt_fetch() -> dict:
                     rate = float(info.playback_rate) if info.playback_rate is not None else 1.0
                 except Exception:
                     rate = 1.0
-                from datetime import datetime, timezone
-
-                out["position"] = timeline_position(pos, end, tl.last_updated_time, datetime.now(timezone.utc), rate)
+                stamp = tl.last_updated_time
+                out["position"] = max(0.0, min(pos, end))            # the snapshot, exactly as the player reported it
                 out["duration"] = end
+                out["pos_age"] = timeline_age(stamp)                 # how old that snapshot is (None: unknown)
+                out["pos_rate"] = rate if rate > 0 else 1.0
+                try:
+                    out["pos_sig"] = (round(pos, 2), stamp.timestamp())  # changes only when the player publishes a new one
+                except Exception:
+                    out["pos_sig"] = (round(pos, 2), None)
         except Exception as e:
             log.debug("timeline unavailable: %s", e)
         key = (out["title"], out["artist"])
@@ -205,20 +212,39 @@ class NowPlaying:
             log.debug("now playing fetch failed: %s", e)
             self.data = {}
 
-    SEEK_TOLERANCE = 2.0  # seconds: a bigger difference than this is a real seek, not reading noise
+    SEEK_TOLERANCE = 2.0   # seconds: a bigger difference than this is a real seek, not reading noise
+    BLIND_TOLERANCE = 5.0  # same, when the snapshot has no usable timestamp (it may simply be old)
 
     def _smooth(self, prev: dict, new: dict) -> dict:
-        """Keep the counter steady between polls: small disagreements with what we already extrapolated are
-        mostly noise from the player (it reports its position in coarse steps), so they are only nudged in."""
-        if (not prev or "position" not in prev or "position" not in new
-                or (prev.get("title"), prev.get("artist")) != (new.get("title"), new.get("artist"))):
+        """Turn the player's coarse snapshots into a steady counter.
+
+        Between polls the widget runs its own clock from ``position`` + ``fetched_at``.  A new reading only moves
+        that clock when the player really published something new (``pos_sig`` changed), and then only by the
+        small difference - unless it is a seek (big jump) or a new track.  Re-reading the same stale snapshot
+        never touches the counter."""
+        age, rate = new.pop("pos_age", None), new.pop("pos_rate", 1.0) or 1.0
+        if "position" not in new:
             return new
-        predicted = prev["position"] + max(0.0, new["fetched_at"] - prev.get("fetched_at", new["fetched_at"]))
-        predicted = min(predicted, new.get("duration") or predicted)
-        delta = new["position"] - predicted
-        if abs(delta) > self.SEEK_TOLERANCE:
-            return new  # the user seeked (or the track restarted)
-        new["position"] = predicted + (delta * 0.3 if delta > 0 else delta * 0.05)  # almost never goes backwards
+        raw = new["position"]
+        fresh = raw + age * rate if age is not None and age <= FRESH_AGE else None
+        dur = new.get("duration") or 1e9
+        same_track = (prev and "position" in prev and (prev.get("title"), prev.get("artist")) == (new.get("title"), new.get("artist")))
+        if not same_track:
+            guess = fresh if fresh is not None else (raw + age * rate if age is not None and 0 < age < dur else raw)
+            new["position"] = max(0.0, min(guess, dur))
+            return new
+        predicted = min(prev["position"] + max(0.0, new["fetched_at"] - prev.get("fetched_at", new["fetched_at"])) * rate, dur)
+        sig = new.get("pos_sig")
+        if sig is not None and sig == prev.get("pos_sig"):
+            new["position"] = predicted           # the same old snapshot again: nothing new, keep counting
+            return new
+        cand = fresh if fresh is not None else raw
+        delta = cand - predicted
+        tol = self.SEEK_TOLERANCE if fresh is not None else self.BLIND_TOLERANCE
+        if abs(delta) > tol:
+            new["position"] = max(0.0, min(cand, dur))  # the user seeked (or the track restarted)
+        else:
+            new["position"] = predicted + (delta * 0.3 if delta > 0 else delta * 0.05)
         return new
 
     def _run(self) -> None:

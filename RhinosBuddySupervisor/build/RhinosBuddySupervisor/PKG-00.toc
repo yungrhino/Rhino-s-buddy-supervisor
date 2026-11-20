@@ -1,4 +1,5 @@
-('C:\\Users\\PC\\Desktop\\Programs\\RhinosBuddySupervisor\\build\\RhinosBuddySupervisor\\RhinosBuddySupervisor.pkg',
+("E:\\documentos\\github\\Rhino's buddy "
+ 'supervisor\\RhinosBuddySupervisor\\build\\RhinosBuddySupervisor\\RhinosBuddySupervisor.pkg',
  {'BINARY': True,
   'DATA': True,
   'EXECUTABLE': True,
@@ -10,22 +11,28 @@
   'SYMLINK': False},
  [('pyi-contents-directory _internal', '', 'OPTION'),
   ('PYZ-00.pyz',
-   'C:\\Users\\PC\\Desktop\\Programs\\RhinosBuddySupervisor\\build\\RhinosBuddySupervisor\\PYZ-00.pyz',
+   "E:\\documentos\\github\\Rhino's buddy "
+   'supervisor\\RhinosBuddySupervisor\\build\\RhinosBuddySupervisor\\PYZ-00.pyz',
    'PYZ'),
   ('struct',
-   'C:\\Users\\PC\\Desktop\\Programs\\RhinosBuddySupervisor\\build\\RhinosBuddySupervisor\\localpycs\\struct.pyc',
+   "E:\\documentos\\github\\Rhino's buddy "
+   'supervisor\\RhinosBuddySupervisor\\build\\RhinosBuddySupervisor\\localpycs\\struct.pyc',
    'PYMODULE'),
   ('pyimod01_archive',
-   'C:\\Users\\PC\\Desktop\\Programs\\RhinosBuddySupervisor\\build\\RhinosBuddySupervisor\\localpycs\\pyimod01_archive.pyc',
+   "E:\\documentos\\github\\Rhino's buddy "
+   'supervisor\\RhinosBuddySupervisor\\build\\RhinosBuddySupervisor\\localpycs\\pyimod01_archive.pyc',
    'PYMODULE'),
   ('pyimod02_importers',
-   'C:\\Users\\PC\\Desktop\\Programs\\RhinosBuddySupervisor\\build\\RhinosBuddySupervisor\\localpycs\\pyimod02_importers.pyc',
+   "E:\\documentos\\github\\Rhino's buddy "
+   'supervisor\\RhinosBuddySupervisor\\build\\RhinosBuddySupervisor\\localpycs\\pyimod02_importers.pyc',
    'PYMODULE'),
   ('pyimod03_ctypes',
-   'C:\\Users\\PC\\Desktop\\Programs\\RhinosBuddySupervisor\\build\\RhinosBuddySupervisor\\localpycs\\pyimod03_ctypes.pyc',
+   "E:\\documentos\\github\\Rhino's buddy "
+   'supervisor\\RhinosBuddySupervisor\\build\\RhinosBuddySupervisor\\localpycs\\pyimod03_ctypes.pyc',
    'PYMODULE'),
   ('pyimod04_pywin32',
-   'C:\\Users\\PC\\Desktop\\Programs\\RhinosBuddySupervisor\\build\\RhinosBuddySupervisor\\localpycs\\pyimod04_pywin32.pyc',
+   "E:\\documentos\\github\\Rhino's buddy "
+   'supervisor\\RhinosBuddySupervisor\\build\\RhinosBuddySupervisor\\localpycs\\pyimod04_pywin32.pyc',
    'PYMODULE'),
   ('pyiboot01_bootstrap',
    'C:\\Users\\PC\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\site-packages\\PyInstaller\\loader\\pyiboot01_bootstrap.py',
@@ -43,7 +50,8 @@
    'C:\\Users\\PC\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_setuptools.py',
    'PYSOURCE'),
   ('run_app',
-   'C:\\Users\\PC\\Desktop\\Programs\\RhinosBuddySupervisor\\run_app.py',
+   "E:\\documentos\\github\\Rhino's buddy "
+   'supervisor\\RhinosBuddySupervisor\\run_app.py',
    'PYSOURCE')],
  'python314.dll',
  True,

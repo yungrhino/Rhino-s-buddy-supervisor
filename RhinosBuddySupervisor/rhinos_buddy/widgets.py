@@ -747,7 +747,13 @@ class NowPlayingWidget(Widget):
         if "position" not in info or not info.get("duration"):
             return None
         pos = float(info["position"]) + max(0.0, self.clock() - float(info.get("fetched_at", self.clock())))
-        return min(pos, float(info["duration"]))
+        pos = min(pos, float(info["duration"]))
+        track = (info.get("title"), info.get("artist"))
+        last_track, last_pos = getattr(self, "_floor", (None, 0.0))
+        if track == last_track and last_pos - 1.0 < pos < last_pos:
+            pos = last_pos  # a small correction never makes the counter go backwards
+        self._floor = (track, pos)
+        return pos
 
     def update(self) -> bool:
         info = self._source().get() or {}

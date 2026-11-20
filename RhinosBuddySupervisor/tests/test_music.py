@@ -1,3 +1,4 @@
+import pytest
 import numpy as np
 from pathlib import Path
 
@@ -294,7 +295,7 @@ def card_engine(tmp_path, info, **o):
 def test_card_layout_builds_a_capa_widget_with_progress():
     lay = L.normalize({"pages": [{"slots": [slot(track_layout="capa", show_viz=False)]}]})
     wd = L.to_config(lay, Path("."))["page"][0]["widget"]
-    assert [w["type"] for w in wd] == ["nowplaying"] and wd[0]["mode"] == "capa" and wd[0]["interval"] == 1
+    assert [w["type"] for w in wd] == ["nowplaying"] and wd[0]["mode"] == "capa" and wd[0]["interval"] <= 0.25  # sampled often: no second is skipped
     big = L.normalize({"pages": [{"slots": [{"module": "musica", "col": 0, "row": 0, "w": 12, "h": 6, "options": {"track_layout": "capa"}}]}]})
     assert [w["type"] for w in L.to_config(big, Path("."))["page"][0]["widget"]] == ["nowplaying", "visualizer"]
     small = L.normalize({"pages": [{"slots": [slot(track_layout="capa")]}]})  # 6x3: no room for a strip
@@ -526,17 +527,16 @@ def test_visualizer_recovers_when_the_device_disappears_and_returns(monkeypatch)
 
 # ---- progress counter: stays in step with the real playback
 
-def test_timeline_position_adds_the_time_since_windows_took_the_snapshot():
+def test_timeline_age_trusts_only_plausible_stamps():
     from datetime import datetime, timedelta, timezone
     now = datetime(2026, 11, 16, 12, 0, 10, tzinfo=timezone.utc)
-    snap = now - timedelta(seconds=4)
-    assert nowplaying.timeline_position(60.0, 200.0, snap, now) == 64.0
-    assert nowplaying.timeline_position(60.0, 200.0, snap, now, rate=2.0) == 68.0
-    assert nowplaying.timeline_position(198.0, 200.0, snap, now) == 200.0           # never past the end
-    assert nowplaying.timeline_position(60.0, 200.0, None, now) == 60.0             # no stamp: as reported
-    assert nowplaying.timeline_position(60.0, 200.0, now + timedelta(seconds=9), now) == 60.0  # stamp in the future
-    naive = datetime(2026, 11, 16, 12, 0, 6)                                        # naive stamp is read as UTC
-    assert nowplaying.timeline_position(60.0, 200.0, naive, now) == 64.0
+    assert nowplaying.timeline_age(now - timedelta(seconds=4), now) == 4.0
+    assert nowplaying.timeline_age(None, now) is None
+    assert nowplaying.timeline_age(now + timedelta(seconds=1), now) == 0.0            # tiny clock skew
+    assert nowplaying.timeline_age(now + timedelta(seconds=30), now) is None           # from the future
+    assert nowplaying.timeline_age(now - timedelta(days=2), now) is None               # ancient
+    local_now = datetime(2026, 11, 16, 9, 0, 10)                                       # naive = the PC's local clock
+    assert nowplaying.timeline_age(datetime(2026, 11, 16, 9, 0, 6), local_now) == 4.0
 
 
 def _poll_sequence(positions, step=2.0):
@@ -572,3 +572,91 @@ def test_counter_resets_on_a_new_track():
     n.clock = lambda: clock[0]
     n.poll_once(); clock[0] += 2; n.poll_once()
     assert n.data["position"] == 3.0
+
+
+def _stream(readings, poll=2.0):
+    """NowPlaying fed by (position, age, signature) readings, one per poll; returns the position after each."""
+    clock = [100.0]
+    seq = iter(readings)
+
+    def fetch():
+        pos, age, sig = next(seq)
+        d = {"title": "t", "artist": "a", "playing": True, "position": pos, "duration": 300.0, "pos_age": age}
+        if sig is not None:
+            d["pos_sig"] = sig
+        return d
+    n = nowplaying.NowPlaying(fetch=fetch)
+    n.clock = lambda: clock[0]
+    out = []
+    for _ in readings:
+        n.poll_once()
+        out.append(n.data["position"])
+        clock[0] += poll
+    return n, out
+
+
+def test_rereading_the_same_stale_snapshot_never_moves_the_counter():
+    # the player published once (pos 50, 1 s old) and then stays silent: Windows keeps returning the same snapshot
+    _, shown = _stream([(50.0, 1.0, ("p", 1))] * 5)
+    assert shown == [51.0, 53.0, 55.0, 57.0, 59.0]
+
+
+def test_fresh_snapshots_keep_the_counter_in_step():
+    _, shown = _stream([(50.0, 0.2, ("a", 1)), (52.1, 0.3, ("a", 2)), (54.0, 0.1, ("a", 3)), (56.2, 0.4, ("a", 4))])
+    steps = [round(b - a, 1) for a, b in zip(shown, shown[1:])]
+    assert all(1.7 <= s <= 2.3 for s in steps), shown
+
+
+def test_untrustworthy_timestamps_do_not_make_the_counter_jump():
+    # age unknown (stamp in another time zone, say): the raw snapshot is used and a stale one is not mistaken for a seek
+    _, shown = _stream([(50.0, None, ("a", 1)), (50.0, None, ("a", 1)), (53.0, None, ("a", 2)), (53.0, None, ("a", 2)), (57.0, None, ("a", 3))])
+    assert all(b > a for a, b in zip(shown, shown[1:])), shown
+    assert max(b - a for a, b in zip(shown, shown[1:])) <= 3.2 and shown[-1] < 60
+
+
+def test_a_seek_is_followed_immediately():
+    _, shown = _stream([(50.0, 0.1, ("a", 1)), (52.0, 0.1, ("a", 2)), (200.0, 0.1, ("a", 3)), (202.0, 0.1, ("a", 4))])
+    assert shown[2] == pytest.approx(200.1) and shown[3] == pytest.approx(202.0, abs=0.3)
+
+
+def test_displayed_seconds_never_skip_or_repeat(tmp_path):
+    """Run the progress card for two minutes (screen ticking at 4 Hz like the layout asks) against a player that
+    publishes every ~3 s with some wobble: the shown seconds must go 0:10, 0:11, 0:12... without gaps or repeats."""
+    import random
+    from rhinos_buddy.widgets import Context, NowPlayingWidget
+    rnd = random.Random(7)
+    t = [1000.0]
+    real_start = 10.0                      # the track was at 0:10 when the test starts
+    state = {"sig": 0, "last_pub": -99.0, "pos": 0.0}
+
+    def fetch():
+        now = t[0]
+        if now - state["last_pub"] >= 3.0:
+            state["last_pub"] = now
+            state["sig"] += 1
+            state["pos"] = real_start + (now - 1000.0) + rnd.uniform(-0.4, 0.4)
+        return {"title": "t", "artist": "a", "playing": True, "position": state["pos"], "duration": 300.0,
+                "pos_age": now - state["last_pub"] + 0.1, "pos_sig": (state["sig"], 0)}
+    np_ = nowplaying.NowPlaying(fetch=fetch)
+    np_.clock = lambda: t[0]
+    ctx = Context(metrics=None, base_dir=tmp_path)
+    ctx.nowplaying = np_
+    w = NowPlayingWidget({"w": 300, "h": 120, "mode": "capa", "show_progress": True}, ctx)
+    w.clock = lambda: t[0]
+    seen, next_poll = [], 0.0
+    while t[0] < 1120.0:
+        if t[0] >= next_poll:               # the poll thread: every 2 s
+            np_.poll_once()
+            next_poll = t[0] + 2.0
+        w.update()
+        pos = w._position(w._info) if w._info else None
+        if pos is not None and (not seen or int(pos) != seen[-1]):
+            seen.append(int(pos))
+        t[0] += 0.25
+    steps = {b - a for a, b in zip(seen, seen[1:])}
+    assert steps == {1}, (steps, seen[:20])
+
+
+def test_a_stamp_in_the_wrong_time_zone_is_not_added_to_the_position():
+    _, shown = _stream([(50.0, 10800.0, ("a", 1)), (50.0, 10800.0, ("a", 1))])   # "3 hours old" on a 5-minute track
+    assert shown == [50.0, 52.0]

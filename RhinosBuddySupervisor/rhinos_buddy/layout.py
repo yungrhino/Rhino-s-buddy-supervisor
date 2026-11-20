@@ -573,7 +573,7 @@ def _build_music(c: _Ctx, o: dict, x, y, w, h, col) -> list[dict]:
                 "align": o["align"], "show_artist": o["show_artist"], "interval": 2}
         if o["track_layout"] == "capa":
             wd.update(mode="capa", show_cover=o["show_cover"], show_progress=o["show_progress"], accent=col,
-                      interval=1)  # the progress bar moves once a second
+                      interval=0.25)  # polled 4x a second so no second is skipped; it only redraws when the second changes
             wd.pop("size")
         return wd
 

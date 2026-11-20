@@ -136,6 +136,7 @@ git push
 ```
 - Faça commits pequenos, um assunto por vez. Para testar algo arriscado: `git switch -c minha-ideia`, e depois abra um Pull Request.
 - Nova versão: aumente `version` em `pyproject.toml` e `__version__`/`__version_title__` em `rhinos_buddy/__init__.py` (o título curto aparece na aba Sistema), faça commit, gere o `.exe` e repita a Parte 6 com a tag nova.
+- A cada versão há um arquivo `docs/releases/vX.Y.Z.md` com as notas prontas: copie o conteúdo para o campo de descrição da Release no GitHub e atualize `docs/releases/HISTORICO.md`.
 - Se alguém mandar código para o projeto, ele passa a ser licenciado sob a MIT também (é o padrão do GitHub); confira de onde veio antes de aceitar.
 - Se um dia você commitar algo por engano (senha, arquivo de terceiros), **não basta apagar no commit seguinte**: o histórico guarda. Avise-me e eu explico como remover.
 
