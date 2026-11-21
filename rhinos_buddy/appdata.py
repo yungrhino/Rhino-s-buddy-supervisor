@@ -116,13 +116,22 @@ def load_prefs(home: Path) -> dict:
     return {"seen_version": seen if isinstance(seen, str) and len(seen) <= 32 else "",
             "hide_notes": raw.get("hide_notes") is True,
             "lang": raw.get("lang") if raw.get("lang") in ("pt", "en") else "pt",
-            "lang_chosen": raw.get("lang_chosen") is True}
+            "lang_chosen": raw.get("lang_chosen") is True,
+            "phone_enabled": raw.get("phone_enabled") is True,
+            "phone_token": _clean_token(raw.get("phone_token"))}
+
+
+def _clean_token(t) -> str:
+    """The phone-access secret: only a plausible URL-safe string is accepted back from the file."""
+    return t if isinstance(t, str) and 16 <= len(t) <= 64 and all(c.isalnum() or c in "-_" for c in t) else ""
 
 
 def save_prefs(home: Path, prefs: dict) -> dict:
     clean = {"seen_version": str(prefs.get("seen_version") or "")[:32], "hide_notes": prefs.get("hide_notes") is True,
              "lang": prefs.get("lang") if prefs.get("lang") in ("pt", "en") else "pt",
-             "lang_chosen": prefs.get("lang_chosen") is True}
+             "lang_chosen": prefs.get("lang_chosen") is True,
+             "phone_enabled": prefs.get("phone_enabled") is True,
+             "phone_token": _clean_token(prefs.get("phone_token"))}
     f = Path(home) / PREFS_FILE
     tmp = f.with_suffix(".tmp")
     tmp.write_text(json.dumps(clean, ensure_ascii=False, indent=2), "utf-8")

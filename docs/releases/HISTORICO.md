@@ -4,6 +4,7 @@ Cada versão tem suas notas completas em `docs/releases/vX.Y.Z.md` (texto pronto
 
 | Versão | Título | Resumo |
 |---|---|---|
+| 1.4.0 | Phone view with QR code | view-only phone page over the local network (QR code, token, separate LAN-only server, off by default) |
 | 1.3.1 | All artists on screen | Spotify tracks show every artist (read from the Spotify window title) |
 | 1.3.0 | Scrolling song titles | long titles/artists scroll in the music card (option), media detection checks all Windows sessions (browser/YouTube), GitHub link next to the version |
 | 1.2.1 | Smooth updates and English file names | opening a new version replaces the old running copy (fixes the missing what's-new window), version in the header, .bat files renamed to English |

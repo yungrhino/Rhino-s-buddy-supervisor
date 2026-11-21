@@ -126,6 +126,14 @@ class Runner:
         self.tee.snapshot().save(buf, "PNG")
         return buf.getvalue()
 
+    def preview_jpeg(self) -> bytes:
+        """The current frame as a small JPEG (what the phone page shows ~8 times a second)."""
+        from io import BytesIO
+
+        buf = BytesIO()
+        self.tee.snapshot().convert("RGB").save(buf, "JPEG", quality=82)
+        return buf.getvalue()
+
     # ------------------------------------------------------------------ screen thread
     _reconnect_requested = False
     _usb_kbs = 0.0

@@ -217,6 +217,24 @@ EN: dict[str, str] = {
     "A tela deixará de ser atualizada e o programa será fechado. Para voltar a usar, abra-o novamente pelo atalho.":
         "The screen will stop updating and the program will close. To use it again, open it from the shortcut.",
     "Cancelar": "Cancel", "Rhino's Buddy Supervisor encerrado. Você pode fechar esta janela.": "Rhino's Buddy Supervisor has quit. You can close this window.",
+    # --- phone access (1.4.0)
+    "Acesso pelo celular": "Phone access",
+    "Veja a tela do Buddy no celular, só para olhar (nada pode ser alterado por lá). O celular precisa estar no mesmo Wi-Fi. Fica desligado até você ligar.":
+        "See the Buddy screen on your phone, view only (nothing can be changed from there). The phone must be on the same Wi-Fi. It stays off until you turn it on.",
+    "Permitir ver a tela pelo celular": "Allow viewing the screen on a phone",
+    "QR code para abrir no celular": "QR code to open on the phone",
+    "Aponte a câmera do celular para o QR code.": "Point the phone camera at the QR code.",
+    "Copiar link": "Copy link", "Link copiado.": "Link copied.",
+    "Não deu para copiar; selecione o link acima.": "Could not copy; select the link above.",
+    "Gerar novo link": "Generate new link",
+    "Gerar um novo link? O QR code e o link atuais deixam de funcionar.": "Generate a new link? The current QR code and link will stop working.",
+    "Qualquer pessoa na sua rede com este link vê a tela (inclusive notificações, se houver). Não compartilhe o link e desligue quando não precisar. A conexão não é criptografada (HTTP em rede local).":
+        "Anyone on your network who has this link can see the screen (including notifications, if any). Do not share the link and turn it off when you do not need it. The connection is not encrypted (plain HTTP on the local network).",
+    "Iniciando…": "Starting…",
+    "Celular ligado": "Phone on",
+    "O acesso pelo celular está ligado (Sistema → Acesso pelo celular)": "Phone access is on (System → Phone access)",
+    "Não encontrei uma rede local (Wi-Fi ou cabo). Conecte o PC a uma rede e tente de novo.": "I could not find a local network (Wi-Fi or cable). Connect the PC to a network and try again.",
+    "Não consegui abrir a porta {n} ({e}).": "Could not open port {n} ({e}).",
 }
 
 # ---- templates: entries with {name} placeholders also match already formatted text

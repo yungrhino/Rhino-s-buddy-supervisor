@@ -104,13 +104,14 @@ def test_popup_shows_once_per_version_and_can_be_turned_off():
 
 
 def test_prefs_roundtrip_and_survive_garbage(tmp_path):
-    assert appdata.load_prefs(tmp_path) == {"seen_version": "", "hide_notes": False, "lang": "pt", "lang_chosen": False}
+    ph = {"phone_enabled": False, "phone_token": ""}
+    assert appdata.load_prefs(tmp_path) == {"seen_version": "", "hide_notes": False, "lang": "pt", "lang_chosen": False, **ph}
     appdata.save_prefs(tmp_path, {"seen_version": "1.1.0", "hide_notes": True, "lang": "pt", "lang_chosen": False})
-    assert appdata.load_prefs(tmp_path) == {"seen_version": "1.1.0", "hide_notes": True, "lang": "pt", "lang_chosen": False}
+    assert appdata.load_prefs(tmp_path) == {"seen_version": "1.1.0", "hide_notes": True, "lang": "pt", "lang_chosen": False, **ph}
     (tmp_path / appdata.PREFS_FILE).write_text("{not json", "utf-8")
-    assert appdata.load_prefs(tmp_path) == {"seen_version": "", "hide_notes": False, "lang": "pt", "lang_chosen": False}
-    (tmp_path / appdata.PREFS_FILE).write_text(json.dumps({"seen_version": ["x"], "hide_notes": "yes"}), "utf-8")
-    assert appdata.load_prefs(tmp_path) == {"seen_version": "", "hide_notes": False, "lang": "pt", "lang_chosen": False}
+    assert appdata.load_prefs(tmp_path) == {"seen_version": "", "hide_notes": False, "lang": "pt", "lang_chosen": False, **ph}
+    (tmp_path / appdata.PREFS_FILE).write_text(json.dumps({"seen_version": ["x"], "hide_notes": "yes", "phone_enabled": "yes", "phone_token": "../x"}), "utf-8")
+    assert appdata.load_prefs(tmp_path) == {"seen_version": "", "hide_notes": False, "lang": "pt", "lang_chosen": False, **ph}
 
 
 # ---- 1.2.1: a newer version replaces the running old copy -------------------------------------------------------

@@ -7,6 +7,21 @@ Add an entry here with every version: a version without notes simply shows no po
 from __future__ import annotations
 
 NOTES: dict[str, dict] = {
+    "1.4.0": {
+        "title": "Phone view with QR code",
+        "items": [
+            "Novo: veja a tela no celular pelo mesmo Wi-Fi. Em Sistema → Acesso pelo celular, ligue o interruptor e escaneie o QR code (Android e iOS, sem instalar nada).",
+            "A página do celular mostra a mesma imagem da tela, com botões para girar e (no Android) tela cheia. É só para olhar: nada pode ser alterado por lá.",
+            "Segurança: vem desligado; usa um servidor separado que escuta só no endereço da sua rede local; exige um código secreto (dentro do QR) que dá para trocar a qualquer momento; só aceita aparelhos da rede local e bloqueia quem tenta adivinhar.",
+            "Atenção: a conexão não é criptografada. Quem estiver na sua rede e tiver o link vê a tela (inclusive notificações). Desligue quando não precisar.",
+        ],
+        "items_en": [
+            "New: see the screen on your phone over the same Wi-Fi. In System → Phone access, turn the switch on and scan the QR code (Android and iOS, nothing to install).",
+            "The phone page shows the same picture as the screen, with buttons to rotate and (on Android) go fullscreen. It is view-only: nothing can be changed from there.",
+            "Security: it is off by default; it uses a separate server that listens only on your local-network address; it requires a secret code (inside the QR) that you can replace at any time; it only accepts devices on the local network and locks out anyone guessing.",
+            "Note: the connection is not encrypted. Anyone on your network who has the link can see the screen (including notifications). Turn it off when you do not need it.",
+        ],
+    },
     "1.3.1": {
         "title": "All artists on screen",
         "items": [

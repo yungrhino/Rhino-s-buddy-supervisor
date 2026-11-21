@@ -31,6 +31,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
+from . import phone as phone_mod
 from . import __version__, __version_title__, appdata, autostart, i18n, release_notes
 from . import layout as L
 from .runner import Runner
@@ -76,6 +77,7 @@ class App:
     def __init__(self, home: Path, runner: Runner, port: int):
         self.home, self.runner, self.port = home, runner, port
         self.server: _Server | None = None
+        self.phone = phone_mod.PhoneAccess(home, frame=runner.preview_jpeg, main_port=port)
         i18n.set_lang(appdata.load_prefs(home)["lang"])  # the saved interface language
 
     # ------------------------------------------------------------------ data for the UI
@@ -94,6 +96,12 @@ class App:
             "home": str(self.home),
             "whatsnew": self.whatsnew(),
         })
+
+    def phone_status(self) -> dict:
+        st = self.phone.status()
+        if st["error"]:
+            st["error"] = i18n.t(st["error"])
+        return st
 
     def whatsnew(self) -> dict:
         prefs = appdata.load_prefs(self.home)
@@ -174,7 +182,9 @@ def make_handler(app: App):
                 if path == "/api/state":
                     return self._json(app.state())
                 if path == "/api/status":
-                    return self._json(app.runner.status())
+                    return self._json({**app.runner.status(), "phone_on": app.phone.running})
+                if path == "/api/phone":
+                    return self._json(app.phone_status())
                 if path == "/api/ports":
                     return self._json(app.ports())
                 if path == "/api/sensors":
@@ -251,6 +261,11 @@ def make_handler(app: App):
                     i18n.set_lang(body["lang"])
                     app.runner.reapply()  # texts drawn on the screen (dates, alerts, labels) follow the language
                     return self._json(app.state())
+                if u.path == "/api/phone":  # phone access: on/off and "new link" (only from the editor, i.e. this PC)
+                    body = json.loads((self._body(1000) or b"{}").decode("utf-8"))
+                    en = body.get("enabled")
+                    app.phone.configure(enabled=en if isinstance(en, bool) else None, rotate=body.get("rotate") is True)
+                    return self._json(app.phone_status())
                 if u.path == "/api/notify_test":
                     app.runner.notify_test()
                     return self._json({"ok": True})
@@ -408,6 +423,7 @@ def main(argv=None) -> int:
     server = _Server(("127.0.0.1", a.port), make_handler(app))
     app.server = server
     runner.start()
+    app.phone.apply()  # only if the user left phone access on
     log.info("Rhino's Buddy Supervisor %s running at %s (home: %s)", __version__, url, home)
     if not a.background and not a.no_window:
         threading.Timer(0.6, open_window, args=(url,)).start()
@@ -416,6 +432,7 @@ def main(argv=None) -> int:
     except KeyboardInterrupt:
         pass
     finally:
+        app.phone.stop()
         runner.stop()
         server.server_close()
     return 0

@@ -166,6 +166,7 @@ code{background:var(--panel2);padding:1px 6px;border-radius:5px;font-size:12.5px
   <div class="spacer"></div>
   <select id="langsel" class="langsel" aria-label="Idioma / Language" data-ta="Idioma / Language"><option value="pt">Português</option><option value="en">English</option></select>
   <button id="themebtn" class="btn small" type="button" data-ta="Alternar modo claro e escuro" aria-label="Alternar modo claro e escuro"></button>
+  <span id="phonechip" class="pill" style="display:none;cursor:default" title=""><span id="phonechiptext"></span></span>
   <div id="pill" class="pill" title=""><span class="dot"></span><span id="pilltext">Conectando…</span></div>
   <button id="quitbtn" class="btn small quit" type="button" data-t="Encerrar">Encerrar</button>
   <div id="savestate"></div>
@@ -742,6 +743,44 @@ function panelTela() {
 }
 async function loadPorts() { try { S.ports = await api("/api/ports"); if (S.tab === "tela") renderPanel(); } catch (_) { S.ports = []; } }
 
+
+// ------------------------------------------------------------------ phone access (same Wi-Fi, read-only)
+function phoneBox() {
+  const box = h("div", { id: "phonebox" });
+  setTimeout(loadPhone, 0);
+  fillPhone(box);
+  return box;
+}
+async function loadPhone() { try { S.phone = await api("/api/phone"); } catch (_) { S.phone = null; } const b = $("#phonebox"); if (b) fillPhone(b); }
+async function setPhone(body) {
+  try { S.phone = await post("/api/phone", body); } catch (e) { toast(e.message, true); }
+  const b = $("#phonebox"); if (b) fillPhone(b);
+  pollStatusNow();
+}
+function fillPhone(box) {
+  const p = S.phone || { enabled: false, running: false };
+  const kids = [
+    h("div", { class: "hint", style: "margin-bottom:8px" }, "Veja a tela do Buddy no celular, só para olhar (nada pode ser alterado por lá). O celular precisa estar no mesmo Wi-Fi. Fica desligado até você ligar."),
+    switchField("Permitir ver a tela pelo celular", () => p.enabled, v => setPhone({ enabled: v })),
+  ];
+  if (p.error) kids.push(h("div", { class: "note warn" }, p.error));
+  if (p.running && p.url) {
+    kids.push(h("div", { class: "card", style: "padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px" },
+      h("img", { alt: tr("QR code para abrir no celular"), style: "width:200px;height:200px;background:#fff;border-radius:8px;image-rendering:pixelated",
+                 src: "data:image/svg+xml;utf8," + encodeURIComponent(p.svg) }),
+      h("div", { class: "hint", style: "text-align:center" }, "Aponte a câmera do celular para o QR code."),
+      h("code", { style: "word-break:break-all;font-size:11px;text-align:center" }, p.url),
+      h("div", { class: "row" },
+        h("button", { class: "btn small", onclick: async () => { try { await navigator.clipboard.writeText(p.url); toast("Link copiado."); } catch (_) { toast("Não deu para copiar; selecione o link acima.", true); } } }, "Copiar link"),
+        h("button", { class: "btn small", onclick: () => { if (confirm(tr("Gerar um novo link? O QR code e o link atuais deixam de funcionar."))) setPhone({ rotate: true }); } }, "Gerar novo link"))));
+    kids.push(h("div", { class: "note warn" }, "Qualquer pessoa na sua rede com este link vê a tela (inclusive notificações, se houver). Não compartilhe o link e desligue quando não precisar. A conexão não é criptografada (HTTP em rede local)."));
+  } else if (p.enabled && !p.error) {
+    kids.push(h("div", { class: "hint" }, "Iniciando…"));
+  }
+  box.replaceChildren(...kids);
+}
+async function pollStatusNow() { try { S.status = await api("/api/status"); updateStatus(); } catch (_) {} }
+
 // ------------------------------------------------------------------ panel: system
 const SENSOR_LABELS = [["cpu", "CPU uso", "%"], ["cpu_temp", "CPU temperatura", " °C"], ["gpu", "GPU uso", "%"], ["gpu_temp", "GPU temperatura", " °C"],
   ["gpu_mem", "Memória de vídeo", "%"], ["ram", "RAM", "%"], ["disk", "Disco", "%"], ["net_down_h", "Download", ""], ["net_up_h", "Upload", ""]];
@@ -763,6 +802,7 @@ function panelSistema() {
       switchField("LibreHardwareMonitor (temperatura da CPU, GPU AMD/Intel)", () => sn.lhm, v => { sn.lhm = v; commit(); }),
       h("div", { class: "hint", style: "margin-bottom:10px" }, "Para a temperatura da CPU: abra o LibreHardwareMonitor como administrador e ative Options → Remote Web Server → Run."),
       src, h("div", { class: "card", style: "margin-top:10px;padding:10px 12px" }, kv)),
+    h("div", { class: "group", id: "phonegroup" }, h("h4", {}, "Acesso pelo celular"), phoneBox()),
     h("div", { class: "group" }, h("h4", {}, "Idioma / Language"),
       selectField("Idioma", [["pt", "Português"], ["en", "English"]], () => LANG, v => setLang(v))),
     h("div", { class: "group" }, h("h4", {}, "Novidades"),
@@ -892,6 +932,8 @@ function updateStatus() {
   pill.className = "pill " + (st.connected ? "ok" : "");
   $("#pilltext").textContent = st.connected ? tr("Tela conectada") + (st.port ? " · " + st.port : "") : tr("Sem tela · pré-visualização");
   pill.title = st.message || "";
+  const pc = $("#phonechip");
+  if (pc) { pc.style.display = st.phone_on ? "" : "none"; $("#phonechiptext").textContent = "📱 " + tr("Celular ligado"); pc.title = tr("O acesso pelo celular está ligado (Sistema → Acesso pelo celular)"); }
   const c = $("#statuscard"); if (c) c.replaceWith(statusCard());
   const u = $("#usbinfo"); if (u) u.textContent = usbText();
   const ni = $("#notifinfo"); if (ni) ni.textContent = notifText();
