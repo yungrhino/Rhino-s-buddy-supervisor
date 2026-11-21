@@ -13,7 +13,7 @@ import threading
 import time
 from pathlib import Path
 
-from . import appdata, notifications
+from . import appdata, i18n, notifications
 from . import layout as L
 from .devices import RevADisplay, TeeDisplay
 from .engine import Engine
@@ -66,8 +66,8 @@ class Runner:
 
     def notify_test(self) -> None:
         """The "Testar" button: shows a sample notification even if the feature is still switched off."""
-        notifications.get_notifier().push("Rhino's Buddy Supervisor", "Teste de notificação",
-                                          "Se você está vendo este aviso, os cards com notificação funcionam.", force=True)
+        notifications.get_notifier().push("Rhino's Buddy Supervisor", i18n.t("Teste de notificação"),
+                                          i18n.t("Se você está vendo este aviso, os cards com notificação funcionam."), force=True)
 
     def _build_engine(self) -> None:
         cfg = L.to_config(self.layout, self.home)
@@ -99,6 +99,10 @@ class Runner:
             self._pending = norm
         return norm
 
+    def reapply(self) -> None:
+        """Rebuild the screen from the current layout (the language changed, so the texts on the screen change)."""
+        self.apply(self.layout)
+
     def focus(self, page: int) -> None:
         """The editor is looking at ``page``: show it on the screen (rotation resumes when it goes quiet)."""
         with self._lock:
@@ -113,7 +117,7 @@ class Runner:
             st = dict(self._status)
         st["usb_kbs"] = round(self._usb_kbs, 1)
         st["notifications"] = notifications.get_notifier().status()
-        return st
+        return i18n.t_deep(st)
 
     def preview_png(self) -> bytes:
         from io import BytesIO

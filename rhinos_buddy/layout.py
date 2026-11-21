@@ -19,8 +19,9 @@ import copy
 import re
 from pathlib import Path
 
+from . import i18n
 from . import protocol as P
-from .widgets import MONTHS, MONTHS_SHORT, WEEKDAYS, WEEKDAYS_SHORT, load_font
+from .widgets import date_names, load_font
 
 CELL = 40
 MAX_PAGES = 8
@@ -623,7 +624,9 @@ def _build_music(c: _Ctx, o: dict, x, y, w, h, col) -> list[dict]:
     return out
 
 
-_WIDE_MONTHS = tuple(MONTHS)
+
+
+_LONG_DATE = {"pt": "{dia} de {mes} de {ano}", "en": "{mes} {dia}, {ano}"}
 
 
 def _widest(font_file: str, samples) -> str:
@@ -632,13 +635,41 @@ def _widest(font_file: str, samples) -> str:
     return max(samples, key=lambda t: f.getlength(t))
 
 
+def _long_date_samples() -> list[str]:
+    """Every "<day> <month> <year>" the long date can show, in the interface language (sizing uses the widest)."""
+    months = date_names()[2]
+    if i18n.lang() == "en":
+        return [f"{m} 00, 2026" for m in months]
+    return [f"00 de {m} de 2026" for m in months]
+
+
 def _fit_long_date(c: _Ctx, w, h, hi) -> int:
-    """Font size for "00 de <mês> de 2026" that fits the box for the widest month in this font."""
-    return min(fit_size(c.font, f"00 de {m} de 2026", w, h, hi=hi) for m in _WIDE_MONTHS)
+    """Font size for the long date that fits the box for the widest month in this font."""
+    return min(fit_size(c.font, sample, w, h, hi=hi) for sample in _long_date_samples())
+
+
+def _opt_default(module: str, key: str):
+    for sp in MODULES[module]["options"] + COMMON_OPTIONS:
+        if sp["key"] == key:
+            return sp["default"]
+    return None
+
+
+def _localized(module: str, o: dict) -> dict:
+    """Texts the program itself put there (default labels, "Nothing playing"...) follow the language; text the
+    user typed is never touched."""
+    if i18n.lang() == "pt":
+        return o
+    o = dict(o)
+    for k in ("label", "text", "idle_text"):
+        if k in o and o[k] == _opt_default(module, k):
+            o[k] = i18n.t(o[k])
+    return o
 
 
 def _build_module(c: _Ctx, module: str, o: dict, x, y, w, h) -> list[dict]:
     th = c.th
+    o = _localized(module, o)
     if module == "notificacao":  # history of the latest notifications, always visible
         return [{"type": "notice", "mode": "list", "x": int(x), "y": int(y), "w": max(1, int(w)), "h": max(1, int(h)),
                  "rows": o["rows"], "idle_text": o["idle_text"], "align": o["align"], "size": max(12, min(18, int(h / 4.2))), "font": c.font,
@@ -700,21 +731,24 @@ def _build_module(c: _Ctx, module: str, o: dict, x, y, w, h) -> list[dict]:
             st = "semana_curto"
         if two:
             h1 = h * 0.52
-            s1 = fit_size(c.font, _widest(c.font, [d.capitalize() for d in WEEKDAYS]), w, h1 * 0.9, hi=30)
+            wd_names, wd_short, mo_names, mo_short = date_names()
+            s1 = fit_size(c.font, _widest(c.font, [d.capitalize() for d in wd_names]), w, h1 * 0.9, hi=30)
             s2 = _fit_long_date(c, w, (h - h1) * 0.9, 24)
             top = _text(c, x, y, w, h1, "{dia_semana_cap}", s1, th["text"] if not o["color"] else col, al, interval=60)
-            bottom = _text(c, x, y + h1, w, h - h1, "{dia} de {mes} de {ano}", s2, th["muted"] if not o["color"] else col, al, interval=60)
+            bottom = _text(c, x, y + h1, w, h - h1, _LONG_DATE[i18n.lang()], s2, th["muted"] if not o["color"] else col, al, interval=60)
             top["fit"] = bottom["fit"] = True
             return [top, bottom]
+        wd_names, wd_short, mo_names, mo_short = date_names()
+        en = i18n.lang() == "en"
         tpl, sample = {
-            "extenso": ("{dia} de {mes} de {ano}", "00 de fevereiro de 2026"),
-            "curto": ("{now:%d/%m/%Y}", "00/00/0000"),
-            "semana_curto": ("{dia_semana_curto}, {dia} {mes_curto}", "qua, 28 set"),
+            "extenso": (_LONG_DATE[i18n.lang()], "00 de fevereiro de 2026"),
+            "curto": ("{now:%m/%d/%Y}" if en else "{now:%d/%m/%Y}", "00/00/0000"),
+            "semana_curto": ("{dia_semana_curto}, {mes_curto} {dia}" if en else "{dia_semana_curto}, {dia} {mes_curto}", "qua, 28 set"),
         }[st]
         if st == "extenso":
             size = _fit_long_date(c, w, h * 0.9, 30)
         elif st == "semana_curto":
-            wide = _widest(c.font, [f"{d}, 00 {m}" for d in WEEKDAYS_SHORT for m in MONTHS_SHORT])
+            wide = _widest(c.font, [f"{d}, {m} 00" if en else f"{d}, 00 {m}" for d in wd_short for m in mo_short])
             size = fit_size(c.font, wide, w, h * 0.9, hi=30)
         else:
             size = fit_size(c.font, sample, w, h * 0.9, hi=30)
@@ -784,21 +818,34 @@ def to_config(layout: dict, home: Path) -> dict:
         "notifications": {"enabled": dev["notify"], "seconds": dev["notify_seconds"], "apps": dev["notify_apps"],
                           "show_text": dev["notify_text"]},
         "sensors": lay["sensors"],
-        "display": {"background": bg["color"], "decimal": "," if th["decimal_comma"] else "."},
+        "display": {"background": bg["color"], "decimal": "," if th["decimal_comma"] and i18n.lang() == "pt" else "."},
         "page": pages,
         "_base_dir": Path(home),
     }
 
 
+def _t_spec(sp: dict) -> dict:
+    sp = dict(sp)
+    sp["label"] = i18n.t(sp["label"])
+    if sp.get("hint"):
+        sp["hint"] = i18n.t(sp["hint"])
+    if sp.get("choices"):
+        sp["choices"] = [[c[0], i18n.t(c[1])] for c in sp["choices"]]
+    if sp.get("kind") == "text" and isinstance(sp.get("default"), str):
+        sp["default_pt"] = sp["default"]       # layouts store defaults as Portuguese; the editor shows them translated
+        sp["default"] = i18n.t(sp["default"])  # e.g. "Nada tocando" -> "Nothing playing" (typed text is stored, never translated)
+    return sp
+
+
 def catalog() -> dict:
-    """Everything the UI needs to build its forms."""
+    """Everything the UI needs to build its forms, in the interface language."""
     return {
-        "modules": [{"id": k, "label": v["label"], "group": v["group"], "size": list(v["size"]),
-                     "options": v["options"]} for k, v in MODULES.items()],
-        "common_options": COMMON_OPTIONS,
-        "beta_group": BETA_GROUP,
+        "modules": [{"id": k, "label": i18n.t(v["label"]), "group": i18n.t(v["group"]), "size": list(v["size"]),
+                     "options": [_t_spec(sp) for sp in v["options"]]} for k, v in MODULES.items()],
+        "common_options": [_t_spec(sp) for sp in COMMON_OPTIONS],
+        "beta_group": i18n.t(BETA_GROUP),
         "fonts": list(FONTS),
-        "rotations": ROTATIONS,
-        "templates": [[k, v] for k, v in TEMPLATES.items()],
+        "rotations": [[k, i18n.t(v)] for k, v in ROTATIONS],
+        "templates": [[k, i18n.t(v)] for k, v in TEMPLATES.items()],
         "cell": CELL,
     }

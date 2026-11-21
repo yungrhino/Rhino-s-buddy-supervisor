@@ -114,11 +114,15 @@ def load_prefs(home: Path) -> dict:
     raw = raw if isinstance(raw, dict) else {}
     seen = raw.get("seen_version")
     return {"seen_version": seen if isinstance(seen, str) and len(seen) <= 32 else "",
-            "hide_notes": raw.get("hide_notes") is True}
+            "hide_notes": raw.get("hide_notes") is True,
+            "lang": raw.get("lang") if raw.get("lang") in ("pt", "en") else "pt",
+            "lang_chosen": raw.get("lang_chosen") is True}
 
 
 def save_prefs(home: Path, prefs: dict) -> dict:
-    clean = {"seen_version": str(prefs.get("seen_version") or "")[:32], "hide_notes": prefs.get("hide_notes") is True}
+    clean = {"seen_version": str(prefs.get("seen_version") or "")[:32], "hide_notes": prefs.get("hide_notes") is True,
+             "lang": prefs.get("lang") if prefs.get("lang") in ("pt", "en") else "pt",
+             "lang_chosen": prefs.get("lang_chosen") is True}
     f = Path(home) / PREFS_FILE
     tmp = f.with_suffix(".tmp")
     tmp.write_text(json.dumps(clean, ensure_ascii=False, indent=2), "utf-8")

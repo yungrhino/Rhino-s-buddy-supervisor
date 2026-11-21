@@ -26,6 +26,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageColor, ImageDraw, ImageFont, ImageSequence
 
+from . import i18n
 from .metrics import Metrics
 
 _FONT_CANDIDATES = (
@@ -124,18 +125,33 @@ MONTHS = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "
           "setembro", "outubro", "novembro", "dezembro"]
 MONTHS_SHORT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]
 
+WEEKDAYS_EN = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+WEEKDAYS_SHORT_EN = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+MONTHS_EN = ["January", "February", "March", "April", "May", "June", "July", "August",
+             "September", "October", "November", "December"]
+MONTHS_SHORT_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+
+def date_names() -> tuple[list, list, list, list]:
+    """(weekdays, short weekdays, months, short months) in the interface language."""
+    if i18n.lang() == "en":
+        return WEEKDAYS_EN, WEEKDAYS_SHORT_EN, MONTHS_EN, MONTHS_SHORT_EN
+    return WEEKDAYS, WEEKDAYS_SHORT, MONTHS, MONTHS_SHORT
+
+
 _NAN_RE = re.compile(r"(?<![A-Za-z])-?(?:nan|inf)(?![A-Za-z])")
 _DEC_RE = re.compile(r"(?<=\d)\.(?=\d)")
 
 
 def pt_date_fields(now) -> dict:
-    """Locale-independent Portuguese date names (Windows strftime would give English)."""
+    """Locale-independent date names in the interface language (Windows strftime follows the system language)."""
+    wd, wd_short, mo, mo_short = date_names()
     return {
-        "dia_semana": WEEKDAYS[now.weekday()],
-        "dia_semana_cap": WEEKDAYS[now.weekday()].capitalize(),
-        "dia_semana_curto": WEEKDAYS_SHORT[now.weekday()],
-        "mes": MONTHS[now.month - 1],
-        "mes_curto": MONTHS_SHORT[now.month - 1],
+        "dia_semana": wd[now.weekday()],
+        "dia_semana_cap": wd[now.weekday()].capitalize(),
+        "dia_semana_curto": wd_short[now.weekday()],
+        "mes": mo[now.month - 1],
+        "mes_curto": mo_short[now.month - 1],
         "dia": now.day,
         "ano": now.year,
     }
@@ -783,7 +799,7 @@ class NowPlayingWidget(Widget):
         fg, muted = color(self.cfg.get("color", "white")), color(self.cfg.get("muted", "#8b95a7"))
         align = self.cfg.get("align", "left")
         if self._shown is None:
-            lines = [(self.cfg.get("idle_text", "Nada tocando"), reg, muted)]
+            lines = [(self.cfg.get("idle_text", i18n.t("Nada tocando")), reg, muted)]
         else:
             title, artist = self._shown[0], self._shown[1]
             lines = [(title, bold, fg)]
@@ -851,7 +867,7 @@ class NowPlayingWidget(Widget):
         size = max(12, min(30, int(area_h * (0.17 if horizontal or not show_cover else 0.2))))
         bold, reg = self._fonts(size)
         if self._shown is None:
-            lines = [(self.cfg.get("idle_text", "Nada tocando"), reg, muted)]
+            lines = [(self.cfg.get("idle_text", i18n.t("Nada tocando")), reg, muted)]
         else:
             lines = [(info.get("title", ""), bold, fg)]
             if info.get("artist") and self.cfg.get("show_artist", True):
@@ -935,7 +951,7 @@ class NoticeWidget(Widget):
             return img
         evs = n.listing(int(self.cfg.get("rows", 3)))
         if not evs:
-            text = _ellipsize(d, self.cfg.get("idle_text", "Sem notificações"), reg, self.w)
+            text = _ellipsize(d, self.cfg.get("idle_text", i18n.t("Sem notificações")), reg, self.w)
             d.text((0, (self.h - reg.size) // 2), text, font=reg, fill=muted)
             return img
         row_h = round(bold.size * 1.3 + reg.size * 1.25) + 10

@@ -38,6 +38,12 @@ header{display:flex;align-items:center;gap:16px;padding:12px 20px;border-bottom:
 .brand .logo{width:26px;height:18px;border:2px solid var(--accent);border-radius:4px;position:relative}
 .brand .logo::after{content:"";position:absolute;inset:3px;background:linear-gradient(135deg,var(--accent),#35c46d);border-radius:1px;opacity:.85}
 .spacer{flex:1}
+header select.langsel{width:auto;padding:4px 8px;font-size:12.5px;border-radius:8px}
+.btn.quit{color:var(--danger-text);border-color:var(--line2)}.btn.quit:hover{border-color:var(--bad)}
+.modal .box.narrow{max-width:400px}
+.modal .choices{display:flex;gap:12px;margin:14px 0 4px}.modal .choices .btn{flex:1;padding:14px 10px;font-size:15px;font-weight:600}
+.modal .actions{display:flex;justify-content:flex-end;gap:10px;margin-top:6px}
+.btn.dangerfill{background:var(--bad);border-color:var(--bad);color:#fff}
 .pill{display:inline-flex;align-items:center;gap:8px;padding:5px 12px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);font-size:13px;cursor:default}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--warn)}
 .pill.ok .dot{background:var(--ok);box-shadow:0 0 8px var(--ok)}
@@ -157,8 +163,10 @@ code{background:var(--panel2);padding:1px 6px;border-radius:5px;font-size:12.5px
 <header>
   <div class="brand"><span class="logo"></span>Rhino's Buddy Supervisor</div>
   <div class="spacer"></div>
-  <button id="themebtn" class="btn small" type="button" aria-label="Alternar modo claro e escuro"></button>
+  <select id="langsel" class="langsel" aria-label="Idioma / Language" data-ta="Idioma / Language"><option value="pt">Português</option><option value="en">English</option></select>
+  <button id="themebtn" class="btn small" type="button" data-ta="Alternar modo claro e escuro" aria-label="Alternar modo claro e escuro"></button>
   <div id="pill" class="pill" title=""><span class="dot"></span><span id="pilltext">Conectando…</span></div>
+  <button id="quitbtn" class="btn small quit" type="button" data-t="Encerrar">Encerrar</button>
   <div id="savestate"></div>
 </header>
 
@@ -167,25 +175,25 @@ code{background:var(--panel2);padding:1px 6px;border-radius:5px;font-size:12.5px
     <div id="pagebar"></div>
     <div id="stagewrap">
       <div id="stage" tabindex="-1">
-        <img id="live" alt="Pré-visualização da tela" draggable="false">
+        <img id="live" alt="Pré-visualização da tela" data-ta="Pré-visualização da tela" draggable="false">
         <div id="grid"></div>
         <div id="slots"></div>
-        <div id="empty">Esta página está vazia.<br>Adicione módulos ao lado ou escolha um modelo abaixo.</div>
+        <div id="empty"><span data-t="Esta página está vazia.">Esta página está vazia.</span><br><span data-t="Adicione módulos ao lado ou escolha um modelo abaixo.">Adicione módulos ao lado ou escolha um modelo abaixo.</span></div>
       </div>
     </div>
     <div id="stagetools">
-      <label class="sw" style="margin:0"><input type="checkbox" id="showgrid"> Mostrar grade</label>
-      <span class="hint">Arraste para mover · puxe qualquer canto azul para redimensionar · clique fora para desmarcar · Alt+clique seleciona o de baixo · setas movem · Delete remove</span>
+      <label class="sw" style="margin:0"><input type="checkbox" id="showgrid"> <span data-t="Mostrar grade">Mostrar grade</span></label>
+      <span class="hint" data-t="Arraste para mover · puxe qualquer canto azul para redimensionar · clique fora para desmarcar · Alt+clique seleciona o de baixo · setas movem · Delete remove">Arraste para mover · puxe qualquer canto azul para redimensionar · clique fora para desmarcar · Alt+clique seleciona o de baixo · setas movem · Delete remove</span>
     </div>
     <div class="card" id="pagecfg"></div>
   </section>
 
   <aside id="right">
     <div id="tabs" role="tablist">
-      <button data-tab="modulo" class="on" role="tab">Módulos</button>
-      <button data-tab="aparencia" role="tab">Aparência</button>
-      <button data-tab="tela" role="tab">Tela</button>
-      <button data-tab="sistema" role="tab">Sistema</button>
+      <button data-t="Módulos" data-tab="modulo" class="on" role="tab">Módulos</button>
+      <button data-t="Aparência" data-tab="aparencia" role="tab">Aparência</button>
+      <button data-t="Tela" data-tab="tela" role="tab">Tela</button>
+      <button data-t="Sistema" data-tab="sistema" role="tab">Sistema</button>
     </div>
     <div id="panel"></div>
   </aside>
@@ -195,9 +203,15 @@ code{background:var(--panel2);padding:1px 6px;border-radius:5px;font-size:12.5px
 <script>
 "use strict";
 const $ = (s, r = document) => r.querySelector(s);
+// ---- language: the page is written in Portuguese; English comes from the dictionary the program serves (/api/state)
+let LANG = "pt", I18N = {};
+const tr = s => (LANG === "en" && typeof s === "string" && I18N[s] !== undefined ? I18N[s] : s);
+const tf = (s, vars = {}) => tr(s).replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
+const TR_ATTRS = new Set(["title", "placeholder", "aria-label", "alt"]);
 function h(tag, props, ...kids) {
   const e = document.createElement(tag);
-  for (const [k, v] of Object.entries(props || {})) {
+  for (const [k, v0] of Object.entries(props || {})) {
+    const v = TR_ATTRS.has(k) ? tr(v0) : v0;
     if (v === false || v == null) continue;
     if (k === "class") e.className = v;
     else if (k === "style") e.style.cssText = v;
@@ -205,7 +219,7 @@ function h(tag, props, ...kids) {
     else if (k in e && k !== "list") e[k] = v;
     else e.setAttribute(k, v === true ? "" : v);
   }
-  for (const c of kids.flat()) { if (c == null || c === false) continue; e.append(c.nodeType ? c : document.createTextNode(c)); }
+  for (const c of kids.flat()) { if (c == null || c === false) continue; e.append(c.nodeType ? c : document.createTextNode(tr(c))); }
   return e;
 }
 async function api(path, opts = {}) {
@@ -218,7 +232,7 @@ const post = (p, body) => api(p, { method: "POST", headers: { "Content-Type": "a
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 let toastTimer;
 function toast(msg, err) {
-  const t = $("#toast"); t.textContent = msg; t.className = "show" + (err ? " err" : "");
+  const t = $("#toast"); t.textContent = tr(msg); t.className = "show" + (err ? " err" : "");
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.className = "", err ? 5000 : 2200);
 }
 
@@ -235,7 +249,7 @@ const screenPx = () => { const [c, r] = gridSize(); return [c * CELL(), r * CELL
 
 // ------------------------------------------------------------------ saving
 let saveTimer = null, saving = false, dirty = false;
-function setSave(t) { $("#savestate").textContent = t; }
+function setSave(t) { $("#savestate").textContent = tr(t); }
 function commit() { dirty = true; setSave("Salvando…"); clearTimeout(saveTimer); saveTimer = setTimeout(doSave, 250); }
 async function doSave() {
   if (saving || dragging) { saveTimer = setTimeout(doSave, 150); return; }
@@ -244,7 +258,7 @@ async function doSave() {
     const r = await post("/api/layout", S.layout);
     if (!dirty && JSON.stringify(r.layout) !== JSON.stringify(S.layout)) { S.layout = r.layout; clampSelection(); renderAll(); }
     setSave(dirty ? "Salvando…" : "Salvo ✓");
-  } catch (e) { toast("Não foi possível salvar: " + e.message, true); setSave("Erro ao salvar"); }
+  } catch (e) { toast(tf("Não foi possível salvar: {msg}", { msg: e.message }), true); setSave("Erro ao salvar"); }
   finally { saving = false; }
 }
 function clampSelection() {
@@ -311,7 +325,7 @@ function renderPages() {
   S.layout.pages.forEach((p, i) => bar.append(h("div", {
     class: "chip" + (i === S.page ? " on" : ""), role: "tab", title: "Duplo clique para renomear",
     onclick: () => { S.page = i; S.sel = -1; renderAll(); },
-    ondblclick: () => { const n = prompt("Nome da página:", p.name); if (n && n.trim()) { p.name = n.trim().slice(0, 30); commit(); renderPages(); renderPageCfg(); } },
+    ondblclick: () => { const n = prompt(tr("Nome da página:"), p.name); if (n && n.trim()) { p.name = n.trim().slice(0, 30); commit(); renderPages(); renderPageCfg(); } },
   }, p.name)));
   if (S.layout.pages.length < 8) bar.append(h("div", { class: "chip add", onclick: addPage }, "+ Página"));
 }
@@ -321,7 +335,7 @@ function renderPageCfg() {
   const tpl = h("select", {}, h("option", { value: "" }, "Aplicar modelo…"), S.cat.templates.map(([k, v]) => h("option", { value: k }, v)));
   tpl.onchange = async () => {
     if (!tpl.value) return;
-    if (p.slots.length && !confirm("Substituir os módulos desta página pelo modelo escolhido?")) { tpl.value = ""; return; }
+    if (p.slots.length && !confirm(tr("Substituir os módulos desta página pelo modelo escolhido?"))) { tpl.value = ""; return; }
     try {
       const r = await api("/api/template?name=" + tpl.value + "&orientation=" + S.layout.device.orientation);
       p.slots = r.slots; S.sel = -1; commit(); renderAll();
@@ -331,7 +345,7 @@ function renderPageCfg() {
     h("h3", {}, "Esta página"),
     h("div", { class: "row" },
       h("div", { class: "field grow", style: "margin:0;flex:1;min-width:160px" }, h("label", {}, "Nome"),
-        h("input", { type: "text", value: p.name, maxLength: 30, oninput: e => { p.name = e.target.value || "Página"; commit(); renderPages(); } })),
+        h("input", { type: "text", value: tr(p.name), maxLength: 30, oninput: e => { p.name = e.target.value || "Página"; commit(); renderPages(); } })),
       h("div", { class: "field", style: "margin:0;width:150px" }, h("label", {}, multi ? "Duração (segundos)" : "Duração (só 1 página)"),
         h("input", { type: "number", min: 3, max: 300, value: p.duration, disabled: !multi || !S.layout.device.rotate, oninput: e => { p.duration = clamp(+e.target.value || 12, 3, 300); commit(); } })),
       h("div", { class: "field", style: "margin:0;min-width:200px;flex:1" }, h("label", {}, "Modelo"), tpl)),
@@ -344,14 +358,14 @@ function renderPageCfg() {
       !multi ? h("span", { class: "hint" }, "Crie mais de uma página para alternar informações.") : null,
       multi && !S.layout.device.rotate ? h("span", { class: "hint" }, "Desligado: a tela fica sempre na primeira página (a que abre ao ligar).") : null));
 }
-function addPage() { S.layout.pages.push({ name: "Página " + (S.layout.pages.length + 1), duration: 12, slots: [] }); S.page = S.layout.pages.length - 1; S.sel = -1; commit(); renderAll(); }
+function addPage() { S.layout.pages.push({ name: tf("Página {n}", { n: S.layout.pages.length + 1 }), duration: 12, slots: [] }); S.page = S.layout.pages.length - 1; S.sel = -1; commit(); renderAll(); }
 function dupPage() {
   if (S.layout.pages.length >= 8) return toast("Máximo de 8 páginas.", true);
-  const c = JSON.parse(JSON.stringify(page())); c.name = (c.name + " (cópia)").slice(0, 30);
+  const c = JSON.parse(JSON.stringify(page())); c.name = tf("{name} (cópia)", { name: c.name }).slice(0, 30);
   S.layout.pages.splice(S.page + 1, 0, c); S.page++; S.sel = -1; commit(); renderAll();
 }
 function delPage() {
-  if (S.layout.pages.length < 2 || !confirm("Excluir a página “" + page().name + "”?")) return;
+  if (S.layout.pages.length < 2 || !confirm(tf("Excluir a página “{name}”?", { name: page().name }))) return;
   S.layout.pages.splice(S.page, 1); S.page = Math.max(0, S.page - 1); S.sel = -1; commit(); renderAll();
 }
 
@@ -499,9 +513,9 @@ function rangeField(label, get, set, min, max, unit = "") {
 function colorField(label, get, set, allowDefault) {
   const cur = get();
   const inp = h("input", { type: "color", value: cur || "#ffffff", oninput: e => { set(e.target.value); st.textContent = e.target.value; } });
-  const st = h("span", { class: "hint" }, cur || "padrão");
+  const st = h("span", { class: "hint" }, cur || tr("padrão"));
   const items = [inp, st];
-  if (allowDefault) items.push(h("button", { class: "btn small", onclick: () => { set(""); st.textContent = "padrão"; } }, "Usar padrão"));
+  if (allowDefault) items.push(h("button", { class: "btn small", onclick: () => { set(""); st.textContent = tr("padrão"); } }, "Usar padrão"));
   return h("div", { class: "field" }, h("div", { class: "lab" }, label), h("div", { class: "inline" }, items));
 }
 async function uploadImage(file) {
@@ -533,8 +547,11 @@ function fileField(label, get, set) {
   };
   draw(); return wrap;
 }
+// a text the program itself put there (stored in Portuguese) is shown in the current language; typed text never changes
+const shown = (spec, v) => (spec && spec.default_pt !== undefined && v === spec.default_pt ? spec.default : v);
+const optSpec = (s, key) => { const m = mod(s.module); return m && m.options.find(o => o.key === key); };
 function optControl(spec, s) {
-  const get = () => (s.options[spec.key] ?? spec.default), set = v => { s.options[spec.key] = v; commit(); };
+  const get = () => shown(spec, s.options[spec.key] ?? spec.default), set = v => { s.options[spec.key] = v; commit(); };
   switch (spec.kind) {
     case "bool": return switchField(spec.label, get, set);
     case "choice": return selectField(spec.label, spec.choices, get, set);
@@ -549,10 +566,10 @@ function optControl(spec, s) {
 function slotDetail(s) {
   const o = s.options || {};
   const bits = [];
-  if (s.module === "text" && o.text) bits.push("“" + o.text.slice(0, 22) + "”");
-  else if (s.module === "image") bits.push(o.image || "sem arquivo");
-  else if (o.label) bits.push(o.label);
-  bits.push(s.w + "×" + s.h + " em " + s.col + "," + s.row);
+  if (s.module === "text" && o.text) bits.push("“" + shown(optSpec(s, "text"), o.text).slice(0, 22) + "”");
+  else if (s.module === "image") bits.push(o.image || tr("sem arquivo"));
+  else if (o.label) bits.push(shown(optSpec(s, "label"), o.label));
+  bits.push(s.w + "×" + s.h + " " + tr("em") + " " + s.col + "," + s.row);
   return bits.join(" · ");
 }
 function moveSlot(i, toFront) {  // one step in the drawing order (the list shows front first)
@@ -569,12 +586,12 @@ function layersGroup() {
     const s = sl[i], m = mod(s.module);
     return h("div", { class: "lrow" },
       h("button", { class: "pick" + (i === S.sel ? " on" : "") + (s.hidden ? " off" : ""), title: "Selecionar este módulo", onclick: () => { select(i); renderStage(); } },
-        h("span", {}, (m ? m.label : s.module) + (s.hidden ? " (oculto)" : "")), h("small", {}, slotDetail(s))),
+        h("span", {}, (m ? m.label : s.module) + (s.hidden ? " " + tr("(oculto)") : "")), h("small", {}, slotDetail(s))),
       h("button", { class: "btn small mini", title: s.hidden ? "Mostrar na tela" : "Ocultar da tela (sem remover)", onclick: () => { s.hidden = !s.hidden; commit(); renderStage(); renderPanel(); } }, s.hidden ? "Mostrar" : "Ocultar"),
       h("button", { class: "btn small mini", title: "Trazer para frente", disabled: i === sl.length - 1, onclick: () => moveSlot(i, true) }, "▲"),
       h("button", { class: "btn small mini", title: "Enviar para trás", disabled: i === 0, onclick: () => moveSlot(i, false) }, "▼"));
   });
-  return h("div", { class: "group" }, h("h4", {}, "Nesta página (" + sl.length + ")"),
+  return h("div", { class: "group" }, h("h4", {}, tf("Nesta página ({n})", { n: sl.length })),
     h("div", { class: "hint", style: "margin-bottom:6px" }, "De cima para baixo = da frente para o fundo. Clique para selecionar."),
     h("div", { class: "layers" }, rows));
 }
@@ -614,7 +631,7 @@ function panelModulos() {
   }
   const palette = ms => h("div", { class: "palette" }, ms.map(x => {
     const n = page().slots.filter(q => q.module === x.id).length;
-    return h("button", { class: "btn", title: n ? "Já há " + n + " na página: este botão adiciona mais um. Para editar o existente, use a lista “Nesta página”." : "Adicionar à página", onclick: () => addSlot(x.id) },
+    return h("button", { class: "btn", title: n ? tf("Já há {n} na página: este botão adiciona mais um. Para editar o existente, use a lista “Nesta página”.", { n }) : "Adicionar à página", onclick: () => addSlot(x.id) },
       "+ " + x.label, n ? h("span", { class: "badge" }, String(n)) : null);
   }));
   const beta = S.cat.beta_group, entries = Object.entries(groups);
@@ -623,7 +640,7 @@ function panelModulos() {
       h("div", { class: "hint", style: "margin-bottom:5px" }, g), palette(ms))),
     // category still being polished: collapsed, lists what is inside
     groups[beta] ? h("details", { class: "beta", open: !!S.betaOpen, ontoggle: e => { S.betaOpen = e.target.open; } },
-      h("summary", {}, beta, h("span", { class: "tagbeta" }, groups[beta].length + (groups[beta].length === 1 ? " card" : " cards"))),
+      h("summary", {}, beta, h("span", { class: "tagbeta" }, groups[beta].length + " " + tr(groups[beta].length === 1 ? "card" : "cards"))),
       h("div", { class: "hint", style: "margin-top:8px" }, "Recursos ainda em ajuste: podem não funcionar em todos os computadores. Dentro desta categoria:"),
       h("ul", {}, groups[beta].map(x => h("li", {}, x.label))),
       palette(groups[beta])) : null));
@@ -668,24 +685,24 @@ function panelAparencia() {
 function statusCard() {
   const st = S.status || {};
   return h("div", { class: "note" + (st.connected ? "" : " warn"), id: "statuscard" },
-    h("b", {}, st.connected ? "● Conectada" + (st.port ? " (" + st.port + ")" : "") : "● Sem tela"), h("br"), st.message || "");
+    h("b", {}, st.connected ? tr("● Conectada") + (st.port ? " (" + st.port + ")" : "") : "● Sem tela"), h("br"), st.message || "");
 }
 function usbText() {
   const k = (S.status || {}).usb_kbs;
-  return S.status && S.status.connected ? "Envio médio para a tela: " + (k || 0).toFixed(1).replace(".", ",") + " KB/s (limite ≈ 128 KB/s)." : "";
+  return S.status && S.status.connected ? tf("Envio médio para a tela: {n} KB/s (limite ≈ 128 KB/s).", { n: (k || 0).toFixed(1).replace(".", LANG === "en" ? "." : ",") }) : "";
 }
 function notifText() {
   const n = (S.status || {}).notifications;
   if (!(n && n.enabled)) return "";
-  const src = n.source === "toast" ? "central do Windows" : n.source === "title" ? "título da aba" : "";
-  return n.message + (src ? " Fonte: " + src + " · " + n.pending + " pendente(s) agora." : "");
+  const src = n.source === "toast" ? tr("central do Windows") : n.source === "title" ? tr("título da aba") : "";
+  return n.message + (src ? tf(" Fonte: {src} · {n} pendente(s) agora.", { src, n: n.pending }) : "");
 }
 function panelTela() {
   const d = S.layout.device;
   if (!S.ports) loadPorts();
   const ports = S.ports || [];
-  const choices = [["auto", "Automático (recomendado)"]].concat(ports.map(p => [p.device, p.device + " — " + p.description + (p.is_screen ? "  ★ tela detectada" : "")]));
-  if (!choices.some(c => c[0] === d.port)) choices.push([d.port, d.port + " (não encontrada)"]);
+  const choices = [["auto", "Automático (recomendado)"]].concat(ports.map(p => [p.device, p.device + " — " + p.description + (p.is_screen ? tr("  ★ tela detectada") : "")]));
+  if (!choices.some(c => c[0] === d.port)) choices.push([d.port, tf("{port} (não encontrada)", { port: d.port })]);
   return [
     statusCard(),
     h("div", { class: "row", style: "margin-bottom:16px" },
@@ -745,6 +762,8 @@ function panelSistema() {
       switchField("LibreHardwareMonitor (temperatura da CPU, GPU AMD/Intel)", () => sn.lhm, v => { sn.lhm = v; commit(); }),
       h("div", { class: "hint", style: "margin-bottom:10px" }, "Para a temperatura da CPU: abra o LibreHardwareMonitor como administrador e ative Options → Remote Web Server → Run."),
       src, h("div", { class: "card", style: "margin-top:10px;padding:10px 12px" }, kv)),
+    h("div", { class: "group" }, h("h4", {}, "Idioma / Language"),
+      selectField("Idioma", [["pt", "Português"], ["en", "English"]], () => LANG, v => setLang(v))),
     h("div", { class: "group" }, h("h4", {}, "Novidades"),
       switchField("Mostrar as novidades na primeira abertura de cada versão", () => !(S.whatsnew && S.whatsnew.hide), async v => {
         try { S.whatsnew = await post("/api/whatsnew", { hide: !v }); toast(v ? "As novidades voltam a aparecer a cada atualização." : "As novidades não aparecem mais."); } catch (e) { toast(e.message, true); }
@@ -752,9 +771,9 @@ function panelSistema() {
       h("button", { class: "btn small", onclick: () => showWhatsNew(true) }, "Ver novidades desta versão")),
     h("div", { class: "group" }, h("h4", {}, "Programa"),
       h("div", { class: "row" },
-        h("button", { class: "btn danger", onclick: async () => { if (confirm("Restaurar o layout e a aparência padrão? Suas imagens enviadas são mantidas.")) { const r = await post("/api/reset", {}); S.layout = r.layout; S.sel = -1; S.page = 0; renderAll(); toast("Padrões restaurados."); } } }, "Restaurar padrões"),
-        h("button", { class: "btn danger", onclick: async () => { if (confirm("Encerrar o Rhino's Buddy Supervisor? A tela deixará de ser atualizada.")) { try { await post("/api/quit", {}); } catch (_) {} document.body.innerHTML = "<p style='padding:40px;color:#8b95a7'>Rhino's Buddy Supervisor encerrado. Você pode fechar esta janela.</p>"; } } }, "Encerrar programa")),
-      h("div", { class: "hint", style: "margin-top:12px" }, "Versão " + S.version + (S.version_title ? " (" + S.version_title + ")" : "") + " · Seus dados ficam em ", h("code", {}, S.home))),
+        h("button", { class: "btn danger", onclick: async () => { if (confirm(tr("Restaurar o layout e a aparência padrão? Suas imagens enviadas são mantidas."))) { const r = await post("/api/reset", {}); S.layout = r.layout; S.sel = -1; S.page = 0; renderAll(); toast("Padrões restaurados."); } } }, "Restaurar padrões"),
+        h("button", { class: "btn danger", onclick: confirmQuit }, "Encerrar programa")),
+      h("div", { class: "hint", style: "margin-top:12px" }, tf("Versão {v}", { v: S.version }) + (S.version_title ? " (" + S.version_title + ")" : "") + tr(" · Seus dados ficam em "), h("code", {}, S.home))),
   ];
 }
 async function refreshSensors() {
@@ -765,7 +784,7 @@ async function refreshSensors() {
       const v = r.values[k]; const txt = v == null ? "--" : (typeof v === "number" ? (k.includes("temp") || k === "ram" || k === "disk" || k.startsWith("gpu") || k === "cpu" ? v.toFixed(0) : v) + u : v);
       return [h("span", {}, l), h("span", {}, txt)];
     }));
-    const src = $("#sensorsrc"); if (src) src.replaceChildren(...r.sources.map(s => h("div", { class: "src " + (s.ok ? "ok" : "bad") }, h("span", { class: "dot" }), s.name + (s.ok ? ": funcionando" : ": não encontrado"))));
+    const src = $("#sensorsrc"); if (src) src.replaceChildren(...r.sources.map(s => h("div", { class: "src " + (s.ok ? "ok" : "bad") }, h("span", { class: "dot" }), tf(s.ok ? "{name}: funcionando" : "{name}: não encontrado", { name: s.name }))));
   } catch (_) {}
   if (S.tab === "sistema") setTimeout(refreshSensors, 1500);
 }
@@ -783,7 +802,7 @@ function showWhatsNew(manual) {
   const onKey = e => { if (e.key === "Escape") close(); };
   const box = h("div", { class: "modal", role: "dialog", "aria-modal": "true", "aria-label": "Novidades", onclick: e => { if (e.target === box) close(); } },
     h("div", { class: "box" },
-      h("h2", {}, "Novidades da versão " + n.version),
+      h("h2", {}, tf("Novidades da versão {v}", { v: n.version })),
       h("div", { class: "sub" }, n.title),
       h("ul", {}, n.items.map(t => h("li", {}, t))),
       h("div", { class: "foot" },
@@ -796,11 +815,64 @@ function showWhatsNew(manual) {
 // ------------------------------------------------------------------ theme (light / dark)
 function applyTheme(t) {
   document.documentElement.setAttribute("data-theme", t);
-  const b = $("#themebtn"); if (b) b.textContent = t === "light" ? "🌙 Modo escuro" : "☀ Modo claro";
+  const b = $("#themebtn"); if (b) b.textContent = tr(t === "light" ? "🌙 Modo escuro" : "☀ Modo claro");
   try { localStorage.setItem("theme", t); } catch (_) {}
 }
 $("#themebtn").addEventListener("click", () => applyTheme(document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light"));
 applyTheme(document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark");
+
+// ------------------------------------------------------------------ language (Portuguese / English)
+function applyStatic() {  // the fixed texts of the page itself
+  document.documentElement.lang = LANG === "en" ? "en" : "pt-BR";
+  document.querySelectorAll("[data-t]").forEach(e => { e.textContent = tr(e.dataset.t); });
+  document.querySelectorAll("[data-ta]").forEach(e => { const v = tr(e.dataset.ta); e.setAttribute("aria-label", v); if (e.tagName === "IMG") e.alt = v; });
+  const ls = $("#langsel"); if (ls) ls.value = LANG;
+  applyTheme(document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark");
+}
+function adoptLanguage(st) {  // everything the program sends that depends on the language
+  LANG = st.lang === "en" ? "en" : "pt"; I18N = st.i18n || I18N;
+  Object.assign(S, { cat: st.catalog, status: st.status, whatsnew: st.whatsnew, version_title: st.version_title });
+}
+async function setLang(l) {
+  try { adoptLanguage(await post("/api/lang", { lang: l })); } catch (e) { toast(e.message, true); return; }
+  applyStatic(); renderAll(); updateStatus();
+}
+$("#langsel").addEventListener("change", e => setLang(e.target.value));
+
+// ------------------------------------------------------------------ pop-ups: shared frame, language choice, quit confirmation
+function openModal(label, content, { onClose, narrow } = {}) {
+  const box = h("div", { class: "modal", role: "dialog", "aria-modal": "true", "aria-label": label },
+    h("div", { class: "box" + (narrow ? " narrow" : "") }, content));
+  const onKey = e => { if (e.key === "Escape" && onClose) { e.preventDefault(); onClose(); } };
+  const close = () => { box.remove(); document.removeEventListener("keydown", onKey); };
+  if (onClose) { box.addEventListener("click", e => { if (e.target === box) onClose(); }); document.addEventListener("keydown", onKey); }
+  document.body.append(box);
+  return { box, close };
+}
+function showLanguageChooser() {  // first run only: Portuguese or English (the texts here are fixed: both languages at once)
+  return new Promise(resolve => {
+    const pick = async l => { m.close(); await setLang(l); resolve(); };
+    const m = openModal("Idioma / Language", [
+      h("h2", {}, "Escolha o idioma · Choose your language"),
+      h("div", { class: "sub" }, "Você pode mudar depois no topo da página ou em Sistema → Idioma. · You can change it later at the top of the page or in System → Language."),
+      h("div", { class: "choices" }, h("button", { class: "btn primary", onclick: () => pick("pt") }, "Português"), h("button", { class: "btn primary", onclick: () => pick("en") }, "English"))]);
+    m.box.querySelector(".btn").focus();
+  });
+}
+function confirmQuit() {  // the top button and System → Quit program share this one confirmation
+  if (document.querySelector(".modal")) return;
+  const cancel = h("button", { class: "btn", onclick: () => m.close() }, "Cancelar");
+  const go = h("button", { class: "btn dangerfill", onclick: async () => {
+    m.close(); try { await post("/api/quit", {}); } catch (_) {}
+    document.body.replaceChildren(h("p", { style: "padding:40px;color:#8b95a7" }, "Rhino's Buddy Supervisor encerrado. Você pode fechar esta janela."));
+  } }, "Encerrar programa");
+  const m = openModal(tr("Encerrar o Rhino's Buddy Supervisor?"), [
+    h("h2", {}, "Encerrar o Rhino's Buddy Supervisor?"),
+    h("div", { class: "sub" }, "A tela deixará de ser atualizada e o programa será fechado. Para voltar a usar, abra-o novamente pelo atalho."),
+    h("div", { class: "actions" }, cancel, go)], { narrow: true, onClose: () => m.close() });
+  cancel.focus();  // Enter never quits by accident
+}
+$("#quitbtn").addEventListener("click", confirmQuit);
 
 // ------------------------------------------------------------------ shell
 function renderPanel() {
@@ -816,7 +888,7 @@ document.querySelectorAll("#tabs button").forEach(b => b.addEventListener("click
 function updateStatus() {
   const st = S.status || {}, pill = $("#pill");
   pill.className = "pill " + (st.connected ? "ok" : "");
-  $("#pilltext").textContent = st.connected ? "Tela conectada" + (st.port ? " · " + st.port : "") : "Sem tela · pré-visualização";
+  $("#pilltext").textContent = st.connected ? tr("Tela conectada") + (st.port ? " · " + st.port : "") : tr("Sem tela · pré-visualização");
   pill.title = st.message || "";
   const c = $("#statuscard"); if (c) c.replaceWith(statusCard());
   const u = $("#usbinfo"); if (u) u.textContent = usbText();
@@ -824,7 +896,7 @@ function updateStatus() {
 }
 async function pollStatus() {
   try { const st = await api("/api/status"); if (JSON.stringify(st) !== JSON.stringify(S.status)) { S.status = st; updateStatus(); } } catch (_) {
-    $("#pill").className = "pill bad"; $("#pilltext").textContent = "Programa não responde";
+    $("#pill").className = "pill bad"; $("#pilltext").textContent = tr("Programa não responde");
   }
   setTimeout(pollStatus, 2000);
 }
@@ -842,11 +914,14 @@ setInterval(focusPage, 15000);
 document.addEventListener("visibilitychange", focusPage);
 async function init() {
   try { $("#showgrid").checked = localStorage.getItem("grid") !== "0"; } catch (_) { $("#showgrid").checked = true; }
+  let st;
   try {
-    const st = await api("/api/state");
+    st = await api("/api/state");
     Object.assign(S, { layout: st.layout, cat: st.catalog, status: st.status, media: st.media, autostart: st.autostart, home: st.home, version: st.version, version_title: st.version_title, whatsnew: st.whatsnew });
+    LANG = st.lang === "en" ? "en" : "pt"; I18N = st.i18n || {};
   } catch (e) { document.body.innerHTML = "<p style='padding:40px'>Não foi possível falar com o programa: " + e.message + "</p>"; return; }
-  renderAll(); updateStatus(); pollStatus(); setInterval(refreshLive, 600); refreshLive();
+  applyStatic(); renderAll(); updateStatus(); pollStatus(); setInterval(refreshLive, 600); refreshLive();
+  if (!st.lang_chosen) await showLanguageChooser();  // once: pick Portuguese or English, then the notes (in that language)
   if (S.whatsnew && S.whatsnew.show) showWhatsNew(false);
 }
 init();

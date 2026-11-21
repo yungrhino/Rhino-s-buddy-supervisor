@@ -4,6 +4,7 @@ Cada versão tem suas notas completas em `docs/releases/vX.Y.Z.md` (texto pronto
 
 | Versão | Título | Resumo |
 |---|---|---|
+| 1.2.0 | English language and quick exit | English/Portuguese interface (first-run choice + selector at the top and in System), Quit button with confirmation, documentation in English |
 | 1.1.0 | modo claro e cards em teste | modo claro/escuro, categoria "Em teste" com o card Notificações, alinhamento do texto, preview com desmarcar e 4 cantos, orientação sem bagunça, pop-up de novidades, desinstalador |
 | 1.0.10 | tempo da música preciso | contador de tempo sem pular nem repetir segundos |
 | 1.0.9 | notificações pendentes | lista mostra o que está na central do Windows; filtro olha título e texto; nova tentativa após liberar permissão; status com fonte e motivo da falha |

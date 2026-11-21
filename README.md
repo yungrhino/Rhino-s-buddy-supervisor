@@ -1,175 +1,186 @@
 # Rhino's Buddy Supervisor
 
-Programa de código aberto (MIT) para telas secundárias USB de 3,5" (família Turing Smart Screen): você decide o que aparece na telinha.
+Open-source (MIT) program for 3.5" USB secondary screens (Turing Smart Screen family): you decide what shows up on the little screen.
 
-## Aplicativo com janela (recomendado)
+The editor speaks **English and Portuguese** (pick one the first time you open it; switch any time with the selector at the top of the page or in **System → Language**).
 
-Um programa com editor visual: pré-visualização ao vivo, **módulos em slots** que você arrasta e redimensiona,
-**imagem de fundo**, várias páginas, escolha da porta/rotação/brilho e **início com o Windows**.
+## Desktop app (recommended)
 
-**Gerar o executável** (uma vez, no Windows, com Python instalado): dê duplo clique em `build_exe.bat`.
-Ele cria `dist\RhinosBuddySupervisor\RhinosBuddySupervisor.exe` (e, se quiser, um atalho na Área de Trabalho).
-Sem gerar o `.exe`, `Iniciar Rhinos Buddy Supervisor.bat` abre o mesmo programa direto do código.
+A program with a visual editor: live preview, **modules in slots** that you drag and resize, a **background image**, several pages,
+port / rotation / brightness settings and **start with Windows**.
 
-- Abrir o programa: a janela do editor aparece; abrir de novo apenas traz a janela do que já está rodando.
-- **Sistema → Iniciar com o Windows** liga a tela sozinha no login, em segundo plano (sem janela).
-- Suas configurações ficam em `%APPDATA%\RhinosBuddySupervisor` (`layout.json`, `media\`, `rhinos_buddy.log`).
-- A tela é redesenhada com o que você montou; se o cabo for desconectado, ela reconecta sozinha.
-- Segurança: o editor só atende em `127.0.0.1`, recusa outros sites (Host/CSRF) e só aceita imagens.
+**Build the executable** (once, on Windows with Python installed): double-click `build_exe.bat`.
+It creates `dist\RhinosBuddySupervisor\RhinosBuddySupervisor.exe` (and, if you want, a desktop shortcut).
+Without building the `.exe`, `Iniciar Rhinos Buddy Supervisor.bat` starts the same program straight from the source code.
 
-- **Aba Tela → Estabilidade dos números:** cada número que muda é redesenhado aos poucos (o link USB é lento),
-  então o padrão "Calma" ignora oscilações pequenas (CPU 3%→4%, ±1 °C, rede ±50%). No teste simulado de
-  mesa ociosa isso caiu de ~2,8 para ~0,2 atualizações/s. "Tempo real" mostra toda leitura.
-  Ainda aparece o redesenho progressivo quando um número muda de fato: é o limite do hardware, não tem como zerar.
+- Opening the program shows the editor window; opening it again just brings forward the one that is already running.
+- **System → Start with Windows** turns the screen on by itself at login, in the background (no window).
+- Your settings live in `%APPDATA%\RhinosBuddySupervisor` (`layout.json`, `media\`, `rhinos_buddy.log`).
+- The screen is redrawn with what you built; if the cable is unplugged it reconnects by itself.
+- Security: the editor only listens on `127.0.0.1`, refuses other sites (Host / CSRF checks) and only accepts images.
+- **Quit** button at the top of the page (and **System → Quit program**): asks for confirmation, then closes the program and stops updating the screen.
 
-- **Indicador radial:** em **Aparência → Indicador dos módulos** escolha barras horizontais ou círculos para todos os
-  módulos (CPU, GPU, VRAM, RAM, disco); cada módulo ainda pode ter o seu próprio estilo nas opções dele. Há também o botão "Radial" no topo da aba Módulos e o modelo **Anéis** (Modelo → Anéis).
-- **Módulo Música:** mostra o que está tocando (título e artista) e/ou um visualizador de áudio (barras, espelhado,
-  circular ou pulso na batida), com tamanho livre na grade. Cada parte liga/desliga nas opções do módulo.
-  Ele só funciona com os pacotes opcionais de `requirements-extras.txt` (`build_exe.bat` já tenta instalá-los):
-  `soundcard` captura o que sai nas caixas/fones (qualquer player) e `winrt-*` lê a música atual do Windows.
-  Sem eles, o Spotify ainda é lido pelo título da janela e o visualizador fica parado, com um aviso.
-  No módulo, "Aparência do que está tocando" tem o modo **Card expandido**: capa do álbum, título, artista e barra
-  de progresso com os tempos (capa e tempos vêm do Windows e dependem do player informá-los; o Spotify informa).
-  O **Visualizador de áudio** também existe como card separado (grupo "Música" na lista de módulos), só com o espectro, sem o título da música.
-  O visualizador acompanha o dispositivo de saída padrão do Windows: ao conectar um fone Bluetooth ou trocar de caixa, a captura muda sozinha em cerca de 1 segundo.
-  A captura só roda enquanto há um visualizador visível na tela. Por causa do link USB lento, o programa limita
-  sozinho a taxa de redesenho pelo tamanho da área: slots pequenos (ex. 2x1 células) são mais fluidos que grandes.
+### Language
 
-- **Notificações (WhatsApp Web, Discord etc.):** desligadas por padrão, porque o texto de um aviso pode ser privado.
-  Ligue em **Tela → Mostrar notificações do Windows na tela**. Todo card tem a opção **Mostrar avisos de notificação neste card** (nas opções dele): quando chega um
-  aviso, o card dá lugar a um cartão com o app, o título e a mensagem por alguns segundos e depois volta sozinho ao
-  que estava mostrando (o visualizador volta a tocar, por exemplo). O módulo **Notificações** lista o que
-  ainda está na central do Windows (os avisos que você não abriu), do mais novo para o mais antigo; quando um aviso é
-  aberto ou dispensado no Windows, ele sai da lista. Nada é enviado para fora do computador.
-  - De onde vêm: da central de notificações do Windows (precisa dos pacotes de `requirements-extras.txt` e de
-    *Configurações → Privacidade e segurança → Notificações → "Permitir que aplicativos acessem suas notificações"*).
-    Para o WhatsApp Web, ative as notificações do site no navegador.
-  - Sem permissão ou pacotes, o programa usa só o contador do título da aba (ex.: "(3) WhatsApp"), que vê apenas a
-    aba visível e não mostra quem escreveu. A linha de status em **Tela → Notificações** diz qual fonte está ativa, quantos avisos estão pendentes e, se algo
-    falhar, o motivo. Se você liberar a permissão depois, o programa tenta de novo sozinho em até 30 segundos.
-  - O filtro por app olha também o título e o texto: o WhatsApp Web chega como "Google Chrome" ou "Microsoft Edge",
-    então "WhatsApp" no filtro funciona.
-  - Use **Testar aviso** para ver como fica sem esperar uma mensagem real. Também dá para filtrar por app e
-    esconder o texto (mostrar só "Nova notificação").
+- The first time you open the program, a window asks you to choose **Português** or **English**. It only appears once.
+- Switch later with the selector at the top of the page, or in **System → Language / Idioma**. The change is instant and covers the editor,
+  module names, messages and the texts drawn on the screen (weekdays and months in the date card, alerts, "Nothing playing"...).
+- In English, dates read "November 21, 2026" / "Sat, Nov 21", and numbers use a decimal point (the "decimal comma" option is Portuguese-only).
+- Text you type yourself (labels, page names, free text) is never translated.
+- Command-line output and the guide in `docs/` are still in Portuguese.
 
-- **Modo claro e escuro:** botão no topo do editor (lembra a sua escolha; na primeira vez segue o tema do sistema).
-- **Categoria "Em teste":** em Módulos → Adicionar módulo, uma categoria expansível reúne os cards ainda em ajuste
-  (por enquanto, **Notificações (lista)**). O card de Notificações tem alinhamento de texto (esquerda, centro, direita).
-- **Preview:** clique fora do card para desmarcar; redimensione puxando qualquer um dos quatro cantos.
-- **Paisagem ⇄ retrato:** ao girar a tela, os cards são reorganizados sem se sobrepor e cada orientação lembra a posição de cada card.
-- **Novidades:** na primeira abertura de cada versão aparece um pop-up com as notas (dá para marcar "Não mostrar novamente";
-  Sistema → Novidades liga/desliga e mostra de novo).
-- **Atualizar e desinstalar:** `Desinstalar Rhinos Buddy Supervisor.bat` (na pasta do programa) fecha o programa, remove o
-  início automático e apaga a pasta do programa; seus dados em `%APPDATA%\RhinosBuddySupervisor` são mantidos, a não ser que
-  você escolha "Desinstalar" e responda que quer apagá-los também. Para atualizar: rode o desinstalador (opção 1) e extraia o zip novo.
-  No código-fonte (sem o `.exe`) ele só fecha o programa e remove o início automático, sem apagar a pasta.
+### What you can put on the screen
 
-- **Lista "Nesta página"** (aba Módulos): mostra tudo o que está na tela, da frente para o fundo. Clique para
-  selecionar (mesmo que um módulo de tela cheia cubra os outros), reordene com ▲▼ ou use **Ocultar** para tirar
-  um módulo da tela sem apagar. Alt+clique na pré-visualização seleciona o módulo que está embaixo.
-- **Trocar de página automaticamente:** a chave fica no cartão "Esta página". Desligada, a tela fica sempre na primeira página.
+- **Number stability** (*Screen → Number stability*): every number that changes is redrawn piece by piece (the USB link is slow),
+  so the default "Calm" ignores small fluctuations (CPU 3%→4%, ±1 °C, network ±50%). On an idle desk in a simulated test this dropped from
+  ~2.8 to ~0.2 updates/s. "Real time" shows every reading. A number that really changes is still redrawn progressively: that is a hardware limit.
+- **Radial indicators:** in **Appearance → Module indicator** choose horizontal bars or circles for all modules
+  (CPU, GPU, VRAM, RAM, disk); each module can still have its own style in its options. There is also a "Radial" button at the top of the Modules tab and the **Rings** template (Template → Rings).
+- **Music module:** shows what is playing (title and artist) and/or an audio visualizer (bars, mirrored, circular or beat pulse),
+  freely sized on the grid. Each part can be switched on or off in the module options.
+  It needs the optional packages in `requirements-extras.txt` (`build_exe.bat` tries to install them):
+  `soundcard` captures what goes out of your speakers / headphones (any player) and `winrt-*` reads the current track from Windows.
+  Without them Spotify is still read from its window title and the visualizer stays still, with a warning.
+  In the module, "Now-playing appearance" has the **Expanded card** mode: album cover, title, artist and a progress bar with times
+  (cover and times come from Windows and depend on the player reporting them; Spotify does).
+  The **Audio visualizer** also exists as a separate card (group "Music" in the module list), spectrum only, without the track title.
+  The visualizer follows the default Windows output device: when you connect Bluetooth headphones or switch speakers, the capture follows in about 1 second.
+  Capture only runs while a visualizer is visible on the screen. Because of the slow USB link, the program limits the redraw
+  rate by the size of the area: small slots (e.g. 2x1 cells) are smoother than large ones.
+- **Notifications (WhatsApp Web, Discord, etc.):** off by default, because the text of an alert can be private.
+  Turn it on in **Screen → Show Windows notifications on the screen**. Every card has **Show notification alerts on this card** (in its options): when an
+  alert arrives, the card gives way to a panel with the app, title and message for a few seconds and then returns by itself to what it was
+  showing (the visualizer keeps playing, for example). The **Notifications** module lists what is still in the Windows notification center
+  (the alerts you have not opened), newest first; when an alert is opened or dismissed in Windows it leaves the list. Nothing leaves your computer.
+  - Where they come from: the Windows notification center (needs the packages in `requirements-extras.txt` and
+    *Settings → Privacy & security → Notifications → "Allow apps to access your notifications"*).
+    For WhatsApp Web, turn on the site's notifications in the browser.
+  - Without permission or packages, the program only uses the unread counter in the tab title (e.g. "(3) WhatsApp"), which only sees the
+    visible tab and does not show who wrote. The status line in **Screen → Notifications** says which source is active, how many alerts are pending and, if something
+    fails, why. If you grant the permission later, the program tries again by itself within 30 seconds.
+  - The app filter also looks at the title and the text: WhatsApp Web arrives as "Google Chrome" or "Microsoft Edge",
+    so "WhatsApp" in the filter works.
+  - Use **Test alert** to see how it looks without waiting for a real message. You can also filter by app and
+    hide the text (shows only "New notification").
+  - The Notifications card is in the **Testing** category (see below) and may not work on every computer.
+- **Light and dark mode:** button at the top of the editor (remembers your choice; the first time it follows the system theme).
+- **"Testing" category:** in Modules → Add module, an expandable category gathers the cards that are still being tuned
+  (for now, **Notifications (list)**). The Notifications card has text alignment (left, center, right).
+- **Preview:** click outside a card to deselect it; resize by pulling any of the four corners.
+- **Landscape ⇄ portrait:** when you rotate the screen, cards are rearranged without overlapping and each orientation remembers where each card was.
+- **What's new:** the first time each version is opened, a pop-up shows the notes (tick "Do not show again" to stop it;
+  System → What's new turns it on or off and shows it again).
+- **Updating and uninstalling:** `Desinstalar Rhinos Buddy Supervisor.bat` (in the program folder) closes the program, removes
+  the automatic start and deletes the program folder; your data in `%APPDATA%\RhinosBuddySupervisor` is kept unless
+  you choose "Desinstalar" and answer that you want it deleted too. To update: run the uninstaller (option 1) and extract the new zip.
+  On the source code (no `.exe`) it only closes the program and removes the automatic start, without deleting the folder. Its prompts are in Portuguese.
+- **"On this page" list** (Modules tab): shows everything on the screen, front to back. Click to
+  select (even if a full-screen module covers the others), reorder with ▲▼ or use **Hide** to take
+  a module off the screen without deleting it. Alt+click in the preview selects the module underneath.
+- **Switch pages automatically:** the switch is in the "This page" card. When off, the screen always stays on the first page.
 
-**Veio do nome antigo ("Subscreen")?** Na primeira abertura o programa copia suas configurações e imagens da pasta antiga e troca a entrada de "Iniciar com o Windows" para a nova; nada é apagado. Depois de gerar o novo `.exe`, você pode apagar a pasta `dist\Subscreen` antiga.
+**Coming from the old name ("Subscreen")?** On first launch the program copies your settings and images from the old folder and switches the "Start with Windows" entry to the new one; nothing is deleted. After building the new `.exe` you can delete the old `dist\Subscreen` folder.
 
-Linha de comando (avançado): `python run_app.py [--background] [--no-hardware] [--port N]`.
+Command line (advanced): `python run_app.py [--background] [--no-hardware] [--port N]`.
 
 ---
 
-# Versão por linha de comando
+# Command-line version
 
-Software open source (MIT) para telas secundárias USB de 3,5" (família Turing Smart Screen): **você decide o que aparece na telinha**.
+Open-source software (MIT) for 3.5" USB secondary screens (Turing Smart Screen family): **you decide what shows up on the little screen**.
 
-Escrito do zero em Python. Nenhum código, tema ou imagem do software que acompanha a tela foi copiado.
+Written from scratch in Python. No code, theme or image from the software that ships with the screen was copied.
 
-## Instalação
+## Installation
 
 ```
 pip install -r requirements.txt
 ```
 
-## Testar sem a tela (simulador)
+## Try it without the screen (simulator)
 
 ```
 python -m rhinos_buddy run -c examples/config.toml --simulator --http 8080
 ```
 
-Abra http://127.0.0.1:8080 para ver a tela ao vivo (ou o arquivo `preview.png`).
+Open http://127.0.0.1:8080 to see the screen live (or the `preview.png` file).
 
-## Usar na tela real
+## Using the real screen
 
-1. **Feche o `UsbMonitor.exe` original** (só um programa pode abrir a porta COM).
-2. Descubra a porta: `python -m rhinos_buddy ports` (o Windows 10 não precisa de driver).
-3. Edite `[device]` em `examples/config.toml` (`port = "COM5"`) e rode:
+1. **Close the original `UsbMonitor.exe`** (only one program can open the COM port).
+2. Find the port: `python -m rhinos_buddy ports` (Windows 10 needs no driver).
+3. Edit `[device]` in `examples/config.toml` (`port = "COM5"`) and run:
    ```
    python -m rhinos_buddy run -c examples/config.toml
    ```
 
-Comandos soltos: `image foto.png`, `clear`, `brightness 40`, `hello`.
+Standalone commands: `image photo.png`, `clear`, `brightness 40`, `hello`.
 
-## O que pode ir na tela
+## What can go on the screen
 
-| `type`       | O que faz |
-|--------------|-----------|
-| `text`       | texto com variáveis: `"CPU {cpu:.0f}%"`, `{ram}`, `{ram_used_gb}`, `{disk}`, `{net_down_kbs}`, `{net_up_kbs}`, `{cpu_temp}`, `{battery}`, `{now:%H:%M}` |
-| `clock`      | hora/data (`format` strftime) |
-| `bar`, `graph` | barra e gráfico de qualquer métrica |
-| `image`      | PNG/JPG/GIF animado; se outro programa sobrescrever o arquivo, a tela atualiza |
-| `web_image`  | imagem de uma URL a cada N segundos (câmera, mapa, Grafana) |
-| `command`    | roda **qualquer comando/script** e mostra a saída (texto, ou imagem com `mode = "image"`) |
-| `file`       | últimas linhas de um arquivo de texto/log |
-| `http_json`  | valor de uma API JSON |
-| `plugin`     | seu próprio Python com Pillow (veja `examples/plugins/hello_plugin.py`) |
-| `rect`       | cartões/painéis |
+| `type`       | What it does |
+|--------------|--------------|
+| `text`       | text with variables: `"CPU {cpu:.0f}%"`, `{ram}`, `{ram_used_gb}`, `{disk}`, `{net_down_kbs}`, `{net_up_kbs}`, `{cpu_temp}`, `{battery}`, `{now:%H:%M}` |
+| `clock`      | time / date (`format` is strftime) |
+| `bar`, `graph` | bar and graph of any metric |
+| `image`      | PNG/JPG/animated GIF; if another program overwrites the file, the screen updates |
+| `web_image`  | image from a URL every N seconds (camera, map, Grafana) |
+| `command`    | runs **any command/script** and shows the output (text, or an image with `mode = "image"`) |
+| `file`       | last lines of a text/log file |
+| `http_json`  | a value from a JSON API |
+| `plugin`     | your own Python with Pillow (see `examples/plugins/hello_plugin.py`) |
+| `rect`       | cards / panels |
 
-Várias `[[page]]` alternam sozinhas (`duration`). Só as áreas que mudaram são enviadas por USB, o que deixa tudo fluido.
+Several `[[page]]` blocks rotate by themselves (`duration`). Only the areas that changed are sent over USB, which keeps everything smooth.
 
-## Monitor em português (CPU/GPU, temperaturas, RAM, rede, data e hora)
+## Hardware monitor (CPU/GPU, temperatures, RAM, network, date and time)
 
 ```
 python -m rhinos_buddy run -c examples/config_pt.toml
 ```
 
-- **GPU NVIDIA:** uso e temperatura via `nvidia-smi` (já vem com o driver), sem instalar nada.
-- **Temperatura da CPU (e GPU AMD/Intel):** instale o [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor),
-  abra **como administrador** e ative *Options > Remote Web Server > Run* (porta 8085).
-- `python -m rhinos_buddy sensors` mostra o que foi encontrado. Sensor indisponível aparece como `--`.
-- Textos aceitam `{dia_semana}`, `{dia_semana_cap}`, `{mes}`, `{dia}`, `{ano}` em português e `decimal = ","`.
+(`config_pt.toml` is the Portuguese-language example; the text it draws can be edited freely.)
 
-## Velocidade e "scanlines"
+- **NVIDIA GPU:** usage and temperature through `nvidia-smi` (ships with the driver), nothing to install.
+- **CPU temperature (and AMD/Intel GPU):** install [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor),
+  open it **as administrator** and turn on *Options > Remote Web Server > Run* (port 8085).
+- `python -m rhinos_buddy sensors` shows what was found. An unavailable sensor shows as `--`.
+- Texts accept `{dia_semana}`, `{dia_semana_cap}`, `{mes}`, `{dia}`, `{ano}` (weekday, month, day, year in the interface language) and `decimal = ","`.
 
-Medido em uma tela real: **~128 KB/s fixos** (um quadro 480x320 inteiro = 2,4 s), igual para qualquer
-`baud` e `chunk_lines`. As "scanlines" são o próprio quadro sendo transferido. Para reduzir:
+## Speed and "scanlines"
 
-1. Envie menos pixels: fundo estático e só pequenas áreas dinâmicas (relógio, barras, texto).
-2. GIFs/vídeos: use áreas pequenas (`w`/`h`) e `fit = "contain"`. Orçamento: ~64 mil pixels/s
-   (ex.: 120x120 a ~4 quadros/s). O GIF toca em tempo real, descartando quadros se o link não der conta.
-3. Só os pixels que mudaram são enviados (automático).
+Measured on a real screen: **~128 KB/s fixed** (one full 480x320 frame = 2.4 s), the same for any
+`baud` and `chunk_lines`. The "scanlines" are the frame itself being transferred. To reduce them:
 
-`python -m rhinos_buddy bench` mede a velocidade da sua tela; `rotate` (retrato + giro por software) existe
-mas não ajuda neste hardware.
+1. Send fewer pixels: static background and only small dynamic areas (clock, bars, text).
+2. GIFs/videos: use small areas (`w`/`h`) and `fit = "contain"`. Budget: ~64 thousand pixels/s
+   (e.g. 120x120 at ~4 frames/s). The GIF plays in real time, dropping frames if the link cannot keep up.
+3. Only the pixels that changed are sent (automatic).
 
-## Protocolo (resumo)
+`python -m rhinos_buddy bench` measures your screen's speed; `rotate` (portrait + software rotation) exists
+but does not help on this hardware.
 
-Serial USB-CDC, pacotes de 6 bytes com coordenadas de 10 bits empacotadas e comando no último byte (`0xC5` = desenhar bitmap, seguido de pixels RGB565 little-endian; `0x79` orientação; `0x6E` brilho). Está em `rhinos_buddy/protocol.py`, coberto por testes.
+## Protocol (summary)
 
-## Estado e limitações
+USB-CDC serial, 6-byte packets with packed 10-bit coordinates and the command in the last byte (`0xC5` = draw bitmap, followed by little-endian RGB565 pixels; `0x79` orientation; `0x6E` brightness). It lives in `rhinos_buddy/protocol.py` and is covered by tests.
 
-- O protocolo foi validado em uma tela real (Turing 3,5" Rev A, porta COM, serial `USB35INCHIPSV2`). Outras revisões de painel podem ter protocolos ligeiramente diferentes: se a imagem sair torta, com cores trocadas ou nada aparecer, rode `python -m rhinos_buddy ports` e `python -m rhinos_buddy hello` e abra uma issue com a saída.
-- Temperatura de CPU só funciona onde o `psutil` expõe sensores (Linux). No Windows, use um `plugin`/`command` lendo o LibreHardwareMonitor.
+## Status and limitations
 
-## Testes
+- The protocol was validated on one real screen (Turing 3.5" Rev A, COM port, serial `USB35INCHIPSV2`). Other panel revisions may use slightly different protocols: if the image comes out skewed, with swapped colors or nothing shows, run `python -m rhinos_buddy ports` and `python -m rhinos_buddy hello` and open an issue with the output.
+- CPU temperature only works where `psutil` exposes sensors (Linux). On Windows, use a `plugin` / `command` that reads LibreHardwareMonitor.
+
+## Tests
 
 ```
 pip install pytest && python -m pytest tests
 ```
 
-## Licença, marcas e privacidade
+## License, trademarks and privacy
 
-- **Licença:** MIT (arquivo `LICENSE`). As bibliotecas de terceiros e os programas externos citados estão em
-  [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md); o `.exe` gerado leva os textos completos em `THIRD_PARTY_LICENSES.txt`.
-- **Marcas:** "Turing Smart Screen", "UsbMonitor", "Spotify", "Windows", "NVIDIA" etc. pertencem aos seus donos e são citadas só para
-  identificar produtos compatíveis. O projeto não é afiliado a nenhum deles.
-- **Privacidade:** tudo roda no seu computador. O editor só atende em `127.0.0.1`, não há telemetria, conta ou envio de dados. A única
-  conexão de rede opcional é a leitura do LibreHardwareMonitor local (`127.0.0.1:8085`) e os widgets de URL que você mesmo configurar.
-- **Publicar no GitHub e instalar o LibreHardwareMonitor:** veja [`docs/GUIA_GIT_E_LICENCAS.md`](docs/GUIA_GIT_E_LICENCAS.md).
+- **License:** MIT (`LICENSE` file). Third-party libraries and the external programs mentioned are listed in
+  [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md); the generated `.exe` ships with their full texts in `THIRD_PARTY_LICENSES.txt`.
+- **Trademarks:** "Turing Smart Screen", "UsbMonitor", "Spotify", "Windows", "NVIDIA" etc. belong to their owners and are mentioned only to
+  identify compatible products. The project is not affiliated with any of them.
+- **Privacy:** everything runs on your computer. The editor only listens on `127.0.0.1`; there is no telemetry, account or data upload. The only optional
+  network connection is reading the local LibreHardwareMonitor (`127.0.0.1:8085`) and the URL widgets you configure yourself.
+- **Publishing on GitHub and installing LibreHardwareMonitor:** see [`docs/GUIA_GIT_E_LICENCAS.md`](docs/GUIA_GIT_E_LICENCAS.md) (in Portuguese).

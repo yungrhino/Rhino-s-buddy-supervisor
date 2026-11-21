@@ -96,18 +96,18 @@ def test_release_notes_exist_for_the_current_version():
 
 def test_popup_shows_once_per_version_and_can_be_turned_off():
     v = "1.1.0"
-    assert release_notes.should_show(v, {"seen_version": "", "hide_notes": False})          # first start
+    assert release_notes.should_show(v, {"seen_version": "", "hide_notes": False, "lang": "pt", "lang_chosen": False})          # first start
     assert release_notes.should_show(v, {"seen_version": "1.0.10", "hide_notes": False})    # after an update
     assert not release_notes.should_show(v, {"seen_version": v, "hide_notes": False})       # opened again, no update
     assert not release_notes.should_show(v, {"seen_version": "", "hide_notes": True})       # "do not show again"
-    assert not release_notes.should_show("9.9.9", {"seen_version": "", "hide_notes": False})  # version with no notes
+    assert not release_notes.should_show("9.9.9", {"seen_version": "", "hide_notes": False, "lang": "pt", "lang_chosen": False})  # version with no notes
 
 
 def test_prefs_roundtrip_and_survive_garbage(tmp_path):
-    assert appdata.load_prefs(tmp_path) == {"seen_version": "", "hide_notes": False}
-    appdata.save_prefs(tmp_path, {"seen_version": "1.1.0", "hide_notes": True})
-    assert appdata.load_prefs(tmp_path) == {"seen_version": "1.1.0", "hide_notes": True}
+    assert appdata.load_prefs(tmp_path) == {"seen_version": "", "hide_notes": False, "lang": "pt", "lang_chosen": False}
+    appdata.save_prefs(tmp_path, {"seen_version": "1.1.0", "hide_notes": True, "lang": "pt", "lang_chosen": False})
+    assert appdata.load_prefs(tmp_path) == {"seen_version": "1.1.0", "hide_notes": True, "lang": "pt", "lang_chosen": False}
     (tmp_path / appdata.PREFS_FILE).write_text("{not json", "utf-8")
-    assert appdata.load_prefs(tmp_path) == {"seen_version": "", "hide_notes": False}
+    assert appdata.load_prefs(tmp_path) == {"seen_version": "", "hide_notes": False, "lang": "pt", "lang_chosen": False}
     (tmp_path / appdata.PREFS_FILE).write_text(json.dumps({"seen_version": ["x"], "hide_notes": "yes"}), "utf-8")
-    assert appdata.load_prefs(tmp_path) == {"seen_version": "", "hide_notes": False}
+    assert appdata.load_prefs(tmp_path) == {"seen_version": "", "hide_notes": False, "lang": "pt", "lang_chosen": False}

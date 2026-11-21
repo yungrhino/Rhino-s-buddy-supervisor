@@ -30,7 +30,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import __version__, __version_title__, appdata, autostart, release_notes
+from . import __version__, __version_title__, appdata, autostart, i18n, release_notes
 from . import layout as L
 from .runner import Runner
 
@@ -75,6 +75,7 @@ class App:
     def __init__(self, home: Path, runner: Runner, port: int):
         self.home, self.runner, self.port = home, runner, port
         self.server: _Server | None = None
+        i18n.set_lang(appdata.load_prefs(home)["lang"])  # the saved interface language
 
     # ------------------------------------------------------------------ data for the UI
     def state(self) -> dict:
@@ -84,6 +85,9 @@ class App:
             "layout": self.runner.layout,
             "catalog": L.catalog(),
             "status": self.runner.status(),
+            "lang": i18n.lang(),
+            "lang_chosen": appdata.load_prefs(self.home)["lang_chosen"],
+            "i18n": i18n.EN,  # the English texts, for the editor page
             "media": appdata.list_media(self.home),
             "autostart": {"supported": autostart.supported(), "enabled": autostart.is_enabled()},
             "home": str(self.home),
@@ -92,7 +96,7 @@ class App:
 
     def whatsnew(self) -> dict:
         prefs = appdata.load_prefs(self.home)
-        notes = release_notes.notes_for(__version__)
+        notes = release_notes.notes_for(__version__, i18n.lang())
         return {"show": release_notes.should_show(__version__, prefs), "hide": prefs["hide_notes"], "notes": notes}
 
     def ports(self) -> list[dict]:
@@ -139,7 +143,7 @@ def make_handler(app: App):
             self._send(code, json.dumps(_clean(obj), ensure_ascii=False).encode("utf-8"))
 
         def _error(self, code, message):
-            self._json({"error": message}, code)
+            self._json({"error": i18n.t(message)}, code)
 
         def _host_ok(self) -> bool:
             return (self.headers.get("Host") or "") in allowed_hosts
@@ -236,6 +240,16 @@ def make_handler(app: App):
                         prefs["hide_notes"] = body["hide"]
                     appdata.save_prefs(app.home, prefs)
                     return self._json(app.whatsnew())
+                if u.path == "/api/lang":  # the language picked in the first window, the top bar or System
+                    body = json.loads((self._body(1000) or b"{}").decode("utf-8"))
+                    if body.get("lang") not in i18n.LANGS:
+                        return self._error(400, "Idioma inválido")
+                    prefs = appdata.load_prefs(app.home)
+                    prefs["lang"], prefs["lang_chosen"] = body["lang"], True
+                    appdata.save_prefs(app.home, prefs)
+                    i18n.set_lang(body["lang"])
+                    app.runner.reapply()  # texts drawn on the screen (dates, alerts, labels) follow the language
+                    return self._json(app.state())
                 if u.path == "/api/notify_test":
                     app.runner.notify_test()
                     return self._json({"ok": True})

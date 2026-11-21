@@ -266,7 +266,7 @@ def test_app_identity_is_renamed():
         if "__pycache__" in f.parts or f.name in ("test_runner.py", "appdata.py", "autostart.py", "Desinstalar Rhinos Buddy Supervisor.bat"):  # these clean up / migrate the old name on purpose
             continue
         for n, line in enumerate(f.read_text("utf-8").splitlines(), 1):
-            if re.search(r"subscreen", line, re.I) and "nome antigo" not in line:
+            if re.search(r"subscreen", line, re.I) and "nome antigo" not in line and "old name" not in line:
                 leftovers.append(f"{f.name}:{n}: {line.strip()[:80]}")
     assert not leftovers, leftovers
 

@@ -20,6 +20,8 @@ import threading
 import time
 from collections import deque
 
+from . import i18n
+
 log = logging.getLogger("rhinos_buddy.notifications")
 
 POLL_SECONDS = 1.5
@@ -66,7 +68,7 @@ class TitleCounterSource:
             if n > count:
                 ident = f"{app}-{n}-{time.monotonic():.3f}"  # it grew: a new message
             self._state[app] = (n, ident)
-            out.append({"id": ident, "app": app, "title": "Nova mensagem" if n == 1 else f"{n} mensagens não lidas", "body": ""})
+            out.append({"id": ident, "app": app, "title": i18n.t("Nova mensagem") if n == 1 else i18n.t("{n} mensagens não lidas", n=n), "body": ""})
         for app in list(self._state):
             if app not in seen:
                 del self._state[app]  # read or closed: next unread counts as new
@@ -123,7 +125,7 @@ def winrt_toasts() -> list[dict]:
             try:
                 app = n.app_info.display_info.display_name
             except Exception:
-                app = "Notificação"
+                app = i18n.t("Notificação")
             texts: list[str] = []
             try:
                 binding = n.notification.visual.get_binding(generic)
@@ -134,7 +136,7 @@ def winrt_toasts() -> list[dict]:
                 created = n.creation_time.timestamp()
             except Exception:
                 created = 0.0
-            out.append({"id": str(n.id), "app": app or "Notificação", "title": texts[0] if texts else "",
+            out.append({"id": str(n.id), "app": app or i18n.t("Notificação"), "title": texts[0] if texts else "",
                         "body": " ".join(texts[1:]), "created": created})
         return out
 
@@ -199,10 +201,10 @@ class Notifier:
         if not force and not (self.enabled and self._wanted(app, title, body)):
             return None
         if not self.show_text and not force:
-            title, body = "Nova notificação", ""
+            title, body = i18n.t("Nova notificação"), ""
         with self._lock:
             self._counter += 1
-            ev = {"id": self._counter, "app": app or "Notificação", "title": title or "", "body": body or "",
+            ev = {"id": self._counter, "app": app or i18n.t("Notificação"), "title": title or "", "body": body or "",
                   "t": self.clock(), "forced": bool(force)}
             self.history.appendleft(ev)
         return ev
@@ -224,8 +226,8 @@ class Notifier:
     def _pending_item(self, it: dict) -> dict:
         title, body = it.get("title", "") or "", it.get("body", "") or ""
         if not self.show_text:
-            title, body = "Nova notificação", ""
-        return {"id": str(it.get("id")), "app": it.get("app") or "Notificação", "title": title, "body": body,
+            title, body = i18n.t("Nova notificação"), ""
+        return {"id": str(it.get("id")), "app": it.get("app") or i18n.t("Notificação"), "title": title, "body": body,
                 "t": float(it.get("created") or 0.0)}
 
     def listing(self, n: int = 3) -> list[dict]:
