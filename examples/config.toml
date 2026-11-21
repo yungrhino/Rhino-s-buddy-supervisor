@@ -1,0 +1,143 @@
+# rhinos_buddy - exemplo de configuração (tela 480x320 em modo landscape)
+# Rode sem hardware:  python -m rhinos_buddy run -c examples/config.toml --simulator --http 8080
+
+[device]
+type = "rev_a"            # "rev_a" = tela real | "simulator" = só gera preview.png
+port = "auto"             # ou "COM5" / "/dev/ttyACM0"
+orientation = "landscape" # portrait | landscape | reverse_portrait | reverse_landscape
+brightness = 60           # 0-100
+fps = 10                  # máximo de ticks por segundo
+
+[display]
+background = "#0b0f1a"    # cor ou caminho de imagem (480x320)
+
+# ---------------------------------------------------------------- Página 1: monitor
+[[page]]
+duration = 12             # segundos até a próxima página
+
+[[page.widget]]
+type = "clock"
+x = 16
+y = 8
+w = 200
+h = 56
+format = "%H:%M"
+size = 52
+color = "#ffffff"
+
+[[page.widget]]
+type = "clock"
+x = 230
+y = 12
+w = 234
+h = 24
+format = "%a, %d %b %Y"
+size = 18
+color = "#8b95a7"
+align = "right"
+
+[[page.widget]]
+type = "text"
+x = 16
+y = 84
+w = 200
+h = 24
+text = "CPU  {cpu:.0f}%"
+size = 20
+
+[[page.widget]]
+type = "bar"
+x = 16
+y = 112
+w = 448
+h = 12
+metric = "cpu"
+warn_at = 85
+
+[[page.widget]]
+type = "text"
+x = 16
+y = 140
+w = 300
+h = 24
+text = "RAM  {ram_used_gb:.1f} / {ram_total_gb:.0f} GB"
+size = 20
+
+[[page.widget]]
+type = "bar"
+x = 16
+y = 168
+w = 448
+h = 12
+metric = "ram"
+color = "#4dabf7"
+warn_at = 90
+
+[[page.widget]]
+type = "graph"
+x = 16
+y = 200
+w = 448
+h = 70
+metric = "cpu"
+max = 100
+
+[[page.widget]]
+type = "text"
+x = 16
+y = 282
+w = 448
+h = 24
+text = "↓ {net_down_kbs:.0f} KB/s    ↑ {net_up_kbs:.0f} KB/s"
+size = 16
+color = "#8b95a7"
+
+# ---------------------------------------------------------------- Página 2: seu conteúdo
+[[page]]
+duration = 12
+
+[[page.widget]]
+type = "rect"
+x = 8
+y = 8
+w = 464
+h = 140
+radius = 14
+fill = "#161b26"
+
+[[page.widget]]
+type = "command"            # qualquer script/comando vira widget
+x = 20
+y = 18
+w = 440
+h = 120
+command = "python -c \"import platform;print(platform.node());print(platform.platform())\""
+interval = 30
+wrap = true
+size = 18
+
+# Exemplos prontos para descomentar:
+#
+# [[page.widget]]            # GIF / imagem (relê se o arquivo for sobrescrito)
+# type = "image"
+# x = 0; y = 160; w = 480; h = 160
+# path = "meu.gif"
+# fit = "cover"
+#
+# [[page.widget]]            # imagem de uma URL (ex.: câmera, mapa, Grafana)
+# type = "web_image"
+# x = 0; y = 160; w = 480; h = 160
+# url = "https://exemplo.com/snapshot.jpg"
+# interval = 30
+#
+# [[page.widget]]            # valor de uma API JSON
+# type = "http_json"
+# x = 16; y = 160; w = 300; h = 40
+# url = "https://api.exemplo.com/preco"
+# text = "BTC {price}"
+# fields = { price = "data.last" }
+#
+# [[page.widget]]            # seu próprio código Python (Pillow)
+# type = "plugin"
+# module = "plugins/hello_plugin.py"
+# x = 0; y = 160; w = 480; h = 160

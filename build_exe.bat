@@ -23,9 +23,12 @@ echo [3/4] Empacotando (leva 1 a 3 minutos)...
 python -m PyInstaller --noconfirm --clean --noconsole --name RhinosBuddySupervisor --icon rhinos_buddy.ico --add-data "rhinos_buddy\web;rhinos_buddy\web" --collect-submodules serial --collect-all soundcard --collect-submodules winrt run_app.py
 if errorlevel 1 goto erro
 echo.
-echo [4/4] Reunindo as licencas das bibliotecas (devem acompanhar o programa)...
+echo [4/4] Reunindo licencas, README e desinstalador (devem acompanhar o programa)...
 python tools\collect_licenses.py dist\RhinosBuddySupervisor
 if errorlevel 1 goto erro
+copy /Y "Desinstalar Rhinos Buddy Supervisor.bat" "dist\RhinosBuddySupervisor\" >nul
+copy /Y README.md "dist\RhinosBuddySupervisor\" >nul
+for %%F in (README_v*.md) do copy /Y "%%F" "dist\RhinosBuddySupervisor\" >nul
 echo.
 echo ============================================================
 echo  Pronto!  Executavel em:  %CD%\dist\RhinosBuddySupervisor\RhinosBuddySupervisor.exe

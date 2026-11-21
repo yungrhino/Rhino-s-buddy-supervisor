@@ -53,6 +53,18 @@ Sem gerar o `.exe`, `Iniciar Rhinos Buddy Supervisor.bat` abre o mesmo programa 
   - Use **Testar aviso** para ver como fica sem esperar uma mensagem real. Também dá para filtrar por app e
     esconder o texto (mostrar só "Nova notificação").
 
+- **Modo claro e escuro:** botão no topo do editor (lembra a sua escolha; na primeira vez segue o tema do sistema).
+- **Categoria "Em teste":** em Módulos → Adicionar módulo, uma categoria expansível reúne os cards ainda em ajuste
+  (por enquanto, **Notificações (lista)**). O card de Notificações tem alinhamento de texto (esquerda, centro, direita).
+- **Preview:** clique fora do card para desmarcar; redimensione puxando qualquer um dos quatro cantos.
+- **Paisagem ⇄ retrato:** ao girar a tela, os cards são reorganizados sem se sobrepor e cada orientação lembra a posição de cada card.
+- **Novidades:** na primeira abertura de cada versão aparece um pop-up com as notas (dá para marcar "Não mostrar novamente";
+  Sistema → Novidades liga/desliga e mostra de novo).
+- **Atualizar e desinstalar:** `Desinstalar Rhinos Buddy Supervisor.bat` (na pasta do programa) fecha o programa, remove o
+  início automático e apaga a pasta do programa; seus dados em `%APPDATA%\RhinosBuddySupervisor` são mantidos, a não ser que
+  você escolha "Desinstalar" e responda que quer apagá-los também. Para atualizar: rode o desinstalador (opção 1) e extraia o zip novo.
+  No código-fonte (sem o `.exe`) ele só fecha o programa e remove o início automático, sem apagar a pasta.
+
 - **Lista "Nesta página"** (aba Módulos): mostra tudo o que está na tela, da frente para o fundo. Clique para
   selecionar (mesmo que um módulo de tela cheia cubra os outros), reordene com ▲▼ ou use **Ocultar** para tirar
   um módulo da tela sem apagar. Alt+clique na pré-visualização seleciona o módulo que está embaixo.
