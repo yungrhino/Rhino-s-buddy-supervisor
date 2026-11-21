@@ -50,7 +50,7 @@ EN: dict[str, str] = {
     "Compacto (título e artista)": "Compact (title and artist)",
     "Card expandido (capa + progresso)": "Expanded card (cover + progress)",
     "Card: mostrar a capa": "Card: show the cover", "Card: mostrar barra de progresso e tempo": "Card: show progress bar and time",
-    "Mostrar o artista": "Show the artist", "Mostrar visualizador de áudio": "Show audio visualizer",
+    "Mostrar o artista": "Show the artist", "Rolar títulos longos (como nos MP3 antigos)": "Scroll long titles (like old MP3 players)", "Mostrar visualizador de áudio": "Show audio visualizer",
     "Estilo do visualizador": "Visualizer style", "Barras": "Bars", "Barras espelhadas": "Mirrored bars",
     "Circular": "Circular", "Pulso (batida)": "Pulse (beat)", "Quantidade de barras": "Number of bars",
     "Sensibilidade": "Sensitivity", "Alinhamento do texto": "Text alignment", "Visualizador de áudio": "Audio visualizer",

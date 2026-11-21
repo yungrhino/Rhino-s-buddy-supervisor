@@ -26,7 +26,7 @@ echo.
 echo [4/4] Reunindo licencas, README e desinstalador (devem acompanhar o programa)...
 python tools\collect_licenses.py dist\RhinosBuddySupervisor
 if errorlevel 1 goto erro
-copy /Y "Desinstalar Rhinos Buddy Supervisor.bat" "dist\RhinosBuddySupervisor\" >nul
+copy /Y "Uninstall Rhinos Buddy Supervisor.bat" "dist\RhinosBuddySupervisor\" >nul
 copy /Y README.md "dist\RhinosBuddySupervisor\" >nul
 for %%F in (README_v*.md) do copy /Y "%%F" "dist\RhinosBuddySupervisor\" >nul
 echo.

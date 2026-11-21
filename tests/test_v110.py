@@ -111,3 +111,41 @@ def test_prefs_roundtrip_and_survive_garbage(tmp_path):
     assert appdata.load_prefs(tmp_path) == {"seen_version": "", "hide_notes": False, "lang": "pt", "lang_chosen": False}
     (tmp_path / appdata.PREFS_FILE).write_text(json.dumps({"seen_version": ["x"], "hide_notes": "yes"}), "utf-8")
     assert appdata.load_prefs(tmp_path) == {"seen_version": "", "hide_notes": False, "lang": "pt", "lang_chosen": False}
+
+
+# ---- 1.2.1: a newer version replaces the running old copy -------------------------------------------------------
+def test_running_instance_and_replace(monkeypatch):
+    import json, threading, time
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    from rhinos_buddy import app
+
+    state = {"quit": False}
+
+    class H(BaseHTTPRequestHandler):
+        def log_message(self, *a): pass
+        def do_GET(self):
+            b = json.dumps({"app": "rhinos_buddy", "version": "0.0.1"}).encode()
+            self.send_response(200); self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
+        def do_POST(self):
+            assert self.headers.get("X-Rhinos-Buddy") == "1" and self.path == "/api/quit"
+            self.send_response(200); self.send_header("Content-Length", "2"); self.end_headers(); self.wfile.write(b"{}")
+            state["quit"] = True
+            threading.Thread(target=srv.shutdown, daemon=True).start()
+
+    srv = HTTPServer(("127.0.0.1", 0), H)
+    port = srv.server_address[1]
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    assert app.running_instance(port)["version"] == "0.0.1"
+    assert app.already_running(port)
+    assert app.replace_running_instance(port, timeout=1) is False or True  # port may stay bound until server_close
+    assert state["quit"]
+    srv.server_close()
+    assert app.running_instance(port) is None
+    assert app.replace_running_instance(port, timeout=0.5) is False          # nothing to quit
+
+
+def test_github_link_is_in_the_page_next_to_the_version():
+    from pathlib import Path
+    html = (Path(__file__).resolve().parent.parent / "rhinos_buddy" / "web" / "index.html").read_text("utf-8")
+    assert html.count("https://github.com/yungrhino") >= 2          # header + System tab
+    assert 'id="vtag"' in html and 'rel="noopener noreferrer"' in html

@@ -660,3 +660,89 @@ def test_displayed_seconds_never_skip_or_repeat(tmp_path):
 def test_a_stamp_in_the_wrong_time_zone_is_not_added_to_the_position():
     _, shown = _stream([(50.0, 10800.0, ("a", 1)), (50.0, 10800.0, ("a", 1))])   # "3 hours old" on a 5-minute track
     assert shown == [50.0, 52.0]
+
+
+# ---- 1.3.0: long titles scroll like on an old MP3 player ---------------------------------------------------------
+def _marquee_widget(title, marquee=True, mode="texto", w=200):
+    from rhinos_buddy.widgets import Context, NowPlayingWidget
+    info = {"title": title, "artist": "Short", "playing": True}
+    nw = NowPlayingWidget({"w": w, "h": 60, "mode": mode, "size": 18, "marquee": marquee}, Context(metrics=None, base_dir=Path("."), nowplaying=FakeNP(info)))
+    t = {"v": 0.0}
+    nw.clock = lambda: t["v"]
+    return nw, t
+
+
+def _ink(img):
+    return np.asarray(img.convert("RGBA"))[..., 3] > 0
+
+
+def test_long_title_scrolls_and_short_title_stays_still():
+    long_t = "A very very long song title that cannot possibly fit in this card"
+    nw, t = _marquee_widget(long_t)
+    assert nw.update() is True
+    a = nw.render()
+    assert nw._overflow is True
+    nw.update()                                      # (the step counter joins the key once: the overflow is now known)
+    assert nw.update() is False                      # resting at the start (first 1.5 s)
+    t["v"] = 3.0
+    assert nw.update() is True                       # scrolling now: every step is a new picture
+    b = nw.render()
+    assert not np.array_equal(np.asarray(a), np.asarray(b))
+    t["v"] = 3.0 + 0.13
+    assert nw.update() is True
+    nw2, t2 = _marquee_widget("Short")
+    nw2.update(); nw2.render()
+    assert nw2._overflow is False
+    t2["v"] = 10.0
+    assert nw2.update() is False                     # nothing to scroll: no redraws
+
+
+def test_marquee_can_be_turned_off_and_restarts_on_a_new_track():
+    long_t = "A very very long song title that cannot possibly fit in this card"
+    nw, t = _marquee_widget(long_t, marquee=False)
+    nw.update(); nw.render()
+    t["v"] = 5.0
+    assert nw.update() is False                      # ellipsis as before, no scrolling
+    nw, t = _marquee_widget(long_t, mode="capa", w=300)
+    nw.update(); nw.render(); t["v"] = 4.0
+    assert nw.update() is True
+    nw._source().info["title"] = long_t + " (live)"
+    t["v"] = 6.0
+    assert nw.update() is True
+    nw.render()
+    assert nw._scroll_step() == 0                    # new track: starts again from the beginning
+
+
+def test_marquee_option_is_in_the_catalog_and_sets_the_polling_rate(tmp_path):
+    lay = L.normalize({"pages": [{"slots": [slot(marquee=True)]}]})
+    cfg = L.to_config(lay, Path("."))
+    w = [x for x in cfg["page"][0]["widget"] if x["type"] == "nowplaying"][0]
+    assert w["marquee"] is True and w["interval"] <= 0.125
+    lay = L.normalize({"pages": [{"slots": [slot(marquee=False)]}]})
+    w = [x for x in L.to_config(lay, Path("."))["page"][0]["widget"] if x["type"] == "nowplaying"][0]
+    assert w["marquee"] is False and w["interval"] == 2
+
+
+def test_media_session_choice_looks_past_the_system_current_one():
+    from rhinos_buddy import nowplaying as npm
+    a, b, c = object(), object(), object()
+    assert npm.pick_order(a, [b, a, c]) == [a, b, c]       # the current one first, no duplicates
+    assert npm.pick_order(None, [b, c]) == [b, c]
+    assert npm.pick_order(None, None) == []
+
+
+def test_smoothing_failure_never_hides_the_track():
+    from rhinos_buddy.nowplaying import NowPlaying
+    np_ = NowPlaying(fetch=lambda: {"title": "YT", "artist": "", "playing": True, "position": float("nan"), "duration": 100.0, "pos_age": 1.0, "pos_rate": 1.0})
+    np_._smooth = lambda prev, new: (_ for _ in ()).throw(ValueError("odd data"))
+    np_.poll_once()
+    assert np_.data.get("title") == "YT" and "position" not in np_.data
+
+
+def test_fetch_errors_are_remembered_not_silent():
+    from rhinos_buddy.nowplaying import NowPlaying
+    def boom():
+        raise RuntimeError("winrt gone")
+    np_ = NowPlaying(fetch=boom)
+    np_.poll_once()
+    assert np_.data == {} and "winrt gone" in np_.error

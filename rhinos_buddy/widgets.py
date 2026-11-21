@@ -750,6 +750,16 @@ class NowPlayingWidget(Widget):
         self._shown = None
         self._info: dict = {}
         self.clock = time.monotonic
+        self._overflow = False      # a line is wider than its area (set by the last render)
+        self._scroll_t0 = 0.0       # when the current track started scrolling
+
+    MARQUEE_FPS = 8        # scroll steps per second (the USB link, not the CPU, is the limit)
+    MARQUEE_STEP_PX = 3    # pixels per step -> 24 px/s, readable like an old MP3 player
+    MARQUEE_PAUSE = 12     # steps resting at the start of every lap (1.5 s)
+    MARQUEE_GAP = 40       # empty pixels between the end of the title and its next copy
+
+    def _scroll_step(self) -> int:
+        return int(max(0.0, self.clock() - self._scroll_t0) * self.MARQUEE_FPS)
 
     def _source(self):
         if self.ctx.nowplaying is not None:
@@ -780,6 +790,12 @@ class NowPlayingWidget(Widget):
             pos = self._position(info) if self.cfg.get("show_progress", True) else None
             key = (info.get("title", ""), info.get("artist", ""), len(info.get("art") or b""),
                    None if pos is None else int(pos), info.get("duration"))
+        if key is not None and self._shown is not None and key[:2] != self._shown[:2]:
+            self._scroll_t0 = self.clock()      # new track: start the title from its beginning
+        elif key is not None and self._shown is None:
+            self._scroll_t0 = self.clock()
+        if key is not None and self._overflow and self.cfg.get("marquee", True):
+            key = key + (self._scroll_step(),)  # the scrolling text changes the picture every step
         changed = key != self._shown
         self._shown = key
         return changed
@@ -805,17 +821,38 @@ class NowPlayingWidget(Widget):
             lines = [(title, bold, fg)]
             if artist and self.cfg.get("show_artist", True):
                 lines.append((artist, reg, muted))
-        self._draw_lines(d, lines, 0, self.w, (self.h - sum(round(f.size * 1.3) for _, f, _ in lines)) // 2, align)
+        self._draw_lines(img, d, lines, 0, self.w, (self.h - sum(round(f.size * 1.3) for _, f, _ in lines)) // 2, align)
         return img
 
-    def _draw_lines(self, d, lines, x0, width, y, align):
+    def _draw_lines(self, img, d, lines, x0, width, y, align):
+        overflow = False
+        marquee = self.cfg.get("marquee", True) and self._shown is not None
         for text, f, col in lines:
-            text = _ellipsize(d, text, f, width)
+            lh = round(f.size * 1.3)
             tw = d.textlength(text, font=f)
-            x = x0 + {"left": 0, "center": (width - tw) / 2, "right": width - tw}[align]
-            d.text((x, y), text, font=f, fill=col)
-            y += round(f.size * 1.3)
+            if tw > width and marquee:
+                overflow = True
+                self._draw_scrolling(img, text, f, col, x0, width, y, lh, tw)
+            else:
+                text = _ellipsize(d, text, f, width)
+                tw = d.textlength(text, font=f)
+                x = x0 + {"left": 0, "center": (width - tw) / 2, "right": width - tw}[align]
+                d.text((x, y), text, font=f, fill=col)
+            y += lh
+        self._overflow = overflow
         return y
+
+    def _draw_scrolling(self, img, text, f, col, x0, width, y, lh, tw):
+        """A line wider than its area runs past like on an old MP3 player: rests at the start, scrolls, loops."""
+        lap = max(1, math.ceil((tw + self.MARQUEE_GAP) / self.MARQUEE_STEP_PX))
+        phase = self._scroll_step() % (self.MARQUEE_PAUSE + lap)
+        off = 0 if phase < self.MARQUEE_PAUSE else (phase - self.MARQUEE_PAUSE) * self.MARQUEE_STEP_PX
+        strip = Image.new("RGBA", (max(1, int(width)), lh), (0, 0, 0, 0))
+        sd = ImageDraw.Draw(strip)
+        sd.text((-off, 0), text, font=f, fill=col)
+        if off:
+            sd.text((-off + tw + self.MARQUEE_GAP, 0), text, font=f, fill=col)
+        img.alpha_composite(strip, (int(x0), int(y)))
 
     def _cover(self, art: bytes, size: int):
         key = (hash(art), size)
@@ -876,7 +913,7 @@ class NowPlayingWidget(Widget):
         bar_block = 0 if pos is None else 8 + max(14, round(reg.size * 1.3))
         text_h = sum(round(f.size * 1.3) for _, f, _ in lines)
         y = top + max(0, (area_h - text_h - bar_block) // 2)
-        y = self._draw_lines(d, lines, tx, tw, y, align)
+        y = self._draw_lines(img, d, lines, tx, tw, y, align)
         if pos is not None:
             y += 8
             dur = float(info["duration"])

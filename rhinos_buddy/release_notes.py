@@ -7,6 +7,32 @@ Add an entry here with every version: a version without notes simply shows no po
 from __future__ import annotations
 
 NOTES: dict[str, dict] = {
+    "1.3.0": {
+        "title": "Scrolling song titles",
+        "items": [
+            "Card de música: títulos (e artistas) grandes demais agora rolam pela tela, como nos MP3 players antigos, para mostrar o nome completo. Dá para desligar na opção “Rolar títulos longos”.",
+            "Reconhecimento de mídia mais robusto: agora o programa olha todas as sessões de mídia do Windows e escolhe a que está tocando (por exemplo, YouTube no navegador), em vez de só a “atual”. Falhas de leitura passam a ser registradas no log.",
+            "Seu GitHub (yungrhino) aparece ao lado da versão, no topo da página e na aba Sistema.",
+        ],
+        "items_en": [
+            "Music card: titles (and artists) too wide for the card now scroll past, like on old MP3 players, to show the full name. You can turn it off with the “Scroll long titles” option.",
+            "More robust media detection: the program now looks at all Windows media sessions and picks the one that is playing (for example YouTube in the browser), instead of only the “current” one. Read failures are now written to the log.",
+            "The author's GitHub (yungrhino) is shown next to the version, at the top of the page and in the System tab.",
+        ],
+    },
+    "1.2.1": {
+        "title": "Smooth updates and English file names",
+        "items": [
+            "Correção: ao abrir uma versão nova, o programa agora fecha a cópia antiga que ainda estava rodando e assume o lugar. Antes, a cópia antiga continuava aberta e esta janela de novidades não aparecia.",
+            "A versão agora aparece no topo da página, ao lado do nome.",
+            "Os arquivos .bat agora têm nomes em inglês: “Uninstall Rhinos Buddy Supervisor.bat” e “Start Rhinos Buddy Supervisor.bat” (o desinstalador também fala inglês).",
+        ],
+        "items_en": [
+            "Fix: opening a new version now closes the old copy that was still running and takes its place. Before, the old copy stayed open and this what's-new window never showed up.",
+            "The version is now shown at the top of the page, next to the name.",
+            "The .bat files now have English names: “Uninstall Rhinos Buddy Supervisor.bat” and “Start Rhinos Buddy Supervisor.bat” (the uninstaller speaks English too).",
+        ],
+    },
     "1.2.0": {
         "title": "English language and quick exit",
         "items": [

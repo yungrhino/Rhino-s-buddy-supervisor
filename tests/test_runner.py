@@ -263,7 +263,7 @@ def test_app_identity_is_renamed():
     root = Path(__file__).resolve().parent.parent
     leftovers = []
     for f in list(root.rglob("*.py")) + list(root.rglob("*.html")) + list(root.rglob("*.md")) + list(root.rglob("*.bat")):
-        if "__pycache__" in f.parts or f.name in ("test_runner.py", "appdata.py", "autostart.py", "Desinstalar Rhinos Buddy Supervisor.bat"):  # these clean up / migrate the old name on purpose
+        if "__pycache__" in f.parts or f.name in ("test_runner.py", "appdata.py", "autostart.py", "Uninstall Rhinos Buddy Supervisor.bat"):  # these clean up / migrate the old name on purpose
             continue
         for n, line in enumerate(f.read_text("utf-8").splitlines(), 1):
             if re.search(r"subscreen", line, re.I) and "nome antigo" not in line and "old name" not in line:
@@ -289,16 +289,16 @@ def test_uninstaller_is_safe_and_shipped():
     """The uninstaller must keep CRLF line ends, never delete the source tree, and be copied into the packaged folder."""
     from pathlib import Path
     root = Path(__file__).resolve().parent.parent
-    bat = root / "Desinstalar Rhinos Buddy Supervisor.bat"
+    bat = root / "Uninstall Rhinos Buddy Supervisor.bat"
     raw = bat.read_bytes()
     assert b"\r\n" in raw and b"\n" not in raw.replace(b"\r\n", b"")        # CRLF only
     assert all(c < 128 for c in raw)                                            # no code-page surprises in cmd
     text = raw.decode("ascii")
-    assert "RhinosBuddySupervisor.exe" in text and "if not defined PACKAGED goto semexe" in text   # folder removal only for the packaged build
-    assert text.count("rmdir /s /q") == 2 and "%DATADIR%" in text               # data is removed only in the "desinstalar" branch
+    assert "RhinosBuddySupervisor.exe" in text and "if not defined PACKAGED goto nosource" in text   # folder removal only for the packaged build
+    assert text.count("rmdir /s /q") == 2 and "%DATADIR%" in text               # data is removed only in the "uninstall" branch
     assert "RhinosBuddySupervisor /f" in text and "/api/quit" in text
     build = (root / "build_exe.bat").read_text("utf-8")
-    assert "Desinstalar Rhinos Buddy Supervisor.bat" in build and "README_v*.md" in build and "README.md" in build
+    assert "Uninstall Rhinos Buddy Supervisor.bat" in build and "README_v*.md" in build and "README.md" in build
 
 
 def test_release_readme_matches_the_current_version():

@@ -55,6 +55,15 @@ def timeline_age(last_updated, now=None) -> float | None:
     return age if 0 <= age <= 6 * 3600.0 else None
 
 
+def pick_order(current, sessions) -> list:
+    """Sessions to look at, the system's current one first, then the others (no duplicates, same-object test)."""
+    out = [current] if current is not None else []
+    for s in sessions or []:
+        if s is not None and not any(s is o for o in out):
+            out.append(s)
+    return out
+
+
 def _winrt_fetch() -> dict:
     try:
         from winrt.windows.media.control import (
@@ -70,13 +79,28 @@ def _winrt_fetch() -> dict:
 
     async def go() -> dict:
         mgr = await Manager.request_async()
-        ses = mgr.get_current_session()
+        sessions = []
+        try:
+            sessions = list(mgr.get_sessions())
+        except Exception as e:
+            log.debug("session list unavailable: %s", e)
+        ses = props = info = None
+        cur = mgr.get_current_session()
+        # The "current" session is only the one Windows last favoured: a paused player (or another browser tab) can
+        # hold that spot while a browser plays YouTube.  So look at all of them and take one that is really playing.
+        for cand in pick_order(cur, sessions):
+            try:
+                cand_info = cand.get_playback_info()
+                if cand_info.playback_status != Status.PLAYING:
+                    continue
+                cand_props = await cand.try_get_media_properties_async()
+            except Exception as e:
+                log.debug("session skipped: %s", e)
+                continue
+            if cand_props.title or cand_props.artist:
+                ses, props, info = cand, cand_props, cand_info
+                break
         if ses is None:
-            return {}
-        props = await ses.try_get_media_properties_async()
-        info = ses.get_playback_info()
-        playing = info.playback_status == Status.PLAYING
-        if not playing or not (props.title or props.artist):
             return {}
         app = (ses.source_app_user_model_id or "").split("!")[0].replace(".exe", "")
         out = {"title": props.title or "", "artist": props.artist or "", "app": app, "playing": True}
@@ -175,7 +199,7 @@ def default_fetch() -> dict:
     except ImportError:
         pass
     except Exception as e:
-        log.debug("media session read failed: %s", e)
+        log.warning("media session read failed: %s", e)
     try:
         return _spotify_window_fetch()
     except Exception as e:
@@ -188,6 +212,7 @@ class NowPlaying:
         self.fetch = fetch or default_fetch
         self.poll = poll
         self.data: dict = {}
+        self.error = ""
         self.last_touch = 0.0
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
@@ -206,10 +231,20 @@ class NowPlaying:
             data = dict(self.fetch() or {})
             data["fetched_at"] = self.clock()  # lets the widget advance the progress between polls
             if data.get("playing"):
-                data = self._smooth(self.data, data)
+                try:
+                    data = self._smooth(self.data, data)
+                except Exception:
+                    # never lose the track because the progress smoothing choked on odd player data
+                    log.warning("progress smoothing failed; showing the raw reading", exc_info=True)
+                    for k in ("pos_age", "pos_rate", "pos_sig", "position", "duration"):
+                        data.pop(k, None)
             self.data = data if data.get("playing") else {}
+            self.error = ""
         except Exception as e:
-            log.debug("now playing fetch failed: %s", e)
+            self.error = f"{type(e).__name__}: {e}"
+            if self.error != getattr(self, "_logged_error", None):
+                self._logged_error = self.error
+                log.warning("now playing fetch failed: %s", self.error)
             self.data = {}
 
     SEEK_TOLERANCE = 2.0   # seconds: a bigger difference than this is a real seek, not reading noise

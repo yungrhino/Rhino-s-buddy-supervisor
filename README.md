@@ -11,7 +11,7 @@ port / rotation / brightness settings and **start with Windows**.
 
 **Build the executable** (once, on Windows with Python installed): double-click `build_exe.bat`.
 It creates `dist\RhinosBuddySupervisor\RhinosBuddySupervisor.exe` (and, if you want, a desktop shortcut).
-Without building the `.exe`, `Iniciar Rhinos Buddy Supervisor.bat` starts the same program straight from the source code.
+Without building the `.exe`, `Start Rhinos Buddy Supervisor.bat` starts the same program straight from the source code.
 
 - Opening the program shows the editor window; opening it again just brings forward the one that is already running.
 - **System → Start with Windows** turns the screen on by itself at login, in the background (no window).
@@ -70,7 +70,7 @@ Without building the `.exe`, `Iniciar Rhinos Buddy Supervisor.bat` starts the sa
 - **Landscape ⇄ portrait:** when you rotate the screen, cards are rearranged without overlapping and each orientation remembers where each card was.
 - **What's new:** the first time each version is opened, a pop-up shows the notes (tick "Do not show again" to stop it;
   System → What's new turns it on or off and shows it again).
-- **Updating and uninstalling:** `Desinstalar Rhinos Buddy Supervisor.bat` (in the program folder) closes the program, removes
+- **Updating and uninstalling:** `Uninstall Rhinos Buddy Supervisor.bat` (in the program folder) closes the program, removes
   the automatic start and deletes the program folder; your data in `%APPDATA%\RhinosBuddySupervisor` is kept unless
   you choose "Desinstalar" and answer that you want it deleted too. To update: run the uninstaller (option 1) and extract the new zip.
   On the source code (no `.exe`) it only closes the program and removes the automatic start, without deleting the folder. Its prompts are in Portuguese.

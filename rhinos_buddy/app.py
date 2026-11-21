@@ -24,6 +24,7 @@ import socket
 import subprocess
 import sys
 import threading
+import time
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -314,12 +315,37 @@ def open_window(url: str) -> None:
     webbrowser.open(url)
 
 
-def already_running(port: int) -> bool:
+def running_instance(port: int) -> dict | None:
+    """The ping answer of a Rhino's Buddy Supervisor already listening on ``port`` (None: nothing of ours there)."""
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/ping", timeout=1.5) as r:
-            return json.load(r).get("app") == "rhinos_buddy"
+            info = json.load(r)
+        return info if isinstance(info, dict) and info.get("app") == "rhinos_buddy" else None
     except (urllib.error.URLError, OSError, ValueError):
+        return None
+
+
+def already_running(port: int) -> bool:
+    return running_instance(port) is not None
+
+
+def replace_running_instance(port: int, timeout: float = 8.0) -> bool:
+    """Ask the copy listening on ``port`` to quit and wait until the port is free again.
+
+    Opening a new version while an old one is still running (it was started with Windows, say) must not just show the
+    old window: the old process keeps the old code, so none of the new features would appear."""
+    req = urllib.request.Request(f"http://127.0.0.1:{port}/api/quit", data=b"{}", method="POST",
+                                 headers={"X-Rhinos-Buddy": "1", "Content-Type": "application/json"})
+    try:
+        urllib.request.urlopen(req, timeout=3).read()
+    except (urllib.error.URLError, OSError):
         return False
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if running_instance(port) is None:
+            return True
+        time.sleep(0.25)
+    return False
 
 
 def setup_logging(home: Path, verbose: bool) -> None:
@@ -354,16 +380,27 @@ def main(argv=None) -> int:
             log.exception("could not migrate the old start-with-Windows entry")
     url = f"http://127.0.0.1:{a.port}/"
 
-    try:
-        server = _Server(("127.0.0.1", a.port), BaseHTTPRequestHandler)
-    except OSError:
-        if already_running(a.port):
-            if not a.background and not a.no_window:
-                open_window(url)  # just bring up the editor of the running instance
-            return 0
-        log.error("Port %d is in use by another program", a.port)
-        print(f"A porta {a.port} está em uso por outro programa. Use --port.", file=sys.stderr)
-        return 1
+    for attempt in range(2):
+        try:
+            server = _Server(("127.0.0.1", a.port), BaseHTTPRequestHandler)
+            break
+        except OSError:
+            info = running_instance(a.port)
+            if info is None:
+                log.error("Port %d is in use by another program", a.port)
+                print(f"A porta {a.port} está em uso por outro programa. Use --port.", file=sys.stderr)
+                return 1
+            if info.get("version") == __version__ or attempt:
+                if not a.background and not a.no_window:
+                    open_window(url)  # same version: just bring up the editor of the running instance
+                return 0
+            # another version is running (the old one after an update): replace it with this one
+            log.info("Version %s is running; replacing it with %s", info.get("version"), __version__)
+            if not replace_running_instance(a.port):
+                log.warning("Could not close the running copy; opening its window instead")
+                if not a.background and not a.no_window:
+                    open_window(url)
+                return 0
     server.server_close()
 
     runner = Runner(home, hardware=not a.no_hardware)

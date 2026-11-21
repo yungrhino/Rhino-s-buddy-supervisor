@@ -35,6 +35,7 @@ body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 "Segoe UI",s
 button,input,select{font:inherit;color:inherit}
 header{display:flex;align-items:center;gap:16px;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
 .brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:16px;letter-spacing:.2px}
+.brand #vtag{margin-left:-2px}
 .brand .logo{width:26px;height:18px;border:2px solid var(--accent);border-radius:4px;position:relative}
 .brand .logo::after{content:"";position:absolute;inset:3px;background:linear-gradient(135deg,var(--accent),#35c46d);border-radius:1px;opacity:.85}
 .spacer{flex:1}
@@ -161,7 +162,7 @@ code{background:var(--panel2);padding:1px 6px;border-radius:5px;font-size:12.5px
 </head>
 <body>
 <header>
-  <div class="brand"><span class="logo"></span>Rhino's Buddy Supervisor</div>
+  <div class="brand"><span class="logo"></span>Rhino's Buddy Supervisor<span id="vtag" class="hint" style="font-weight:400;font-size:12px"></span><a id="ghlink" class="hint" href="https://github.com/yungrhino" target="_blank" rel="noopener noreferrer" title="https://github.com/yungrhino" style="font-weight:400;font-size:12px;text-decoration:none">· GitHub: yungrhino</a></div>
   <div class="spacer"></div>
   <select id="langsel" class="langsel" aria-label="Idioma / Language" data-ta="Idioma / Language"><option value="pt">Português</option><option value="en">English</option></select>
   <button id="themebtn" class="btn small" type="button" data-ta="Alternar modo claro e escuro" aria-label="Alternar modo claro e escuro"></button>
@@ -773,7 +774,7 @@ function panelSistema() {
       h("div", { class: "row" },
         h("button", { class: "btn danger", onclick: async () => { if (confirm(tr("Restaurar o layout e a aparência padrão? Suas imagens enviadas são mantidas."))) { const r = await post("/api/reset", {}); S.layout = r.layout; S.sel = -1; S.page = 0; renderAll(); toast("Padrões restaurados."); } } }, "Restaurar padrões"),
         h("button", { class: "btn danger", onclick: confirmQuit }, "Encerrar programa")),
-      h("div", { class: "hint", style: "margin-top:12px" }, tf("Versão {v}", { v: S.version }) + (S.version_title ? " (" + S.version_title + ")" : "") + tr(" · Seus dados ficam em "), h("code", {}, S.home))),
+      h("div", { class: "hint", style: "margin-top:12px" }, tf("Versão {v}", { v: S.version }) + (S.version_title ? " (" + S.version_title + ")" : "") + " · ", h("a", { href: "https://github.com/yungrhino", target: "_blank", rel: "noopener noreferrer" }, "GitHub: yungrhino"), tr(" · Seus dados ficam em "), h("code", {}, S.home))),
   ];
 }
 async function refreshSensors() {
@@ -827,6 +828,7 @@ function applyStatic() {  // the fixed texts of the page itself
   document.querySelectorAll("[data-t]").forEach(e => { e.textContent = tr(e.dataset.t); });
   document.querySelectorAll("[data-ta]").forEach(e => { const v = tr(e.dataset.ta); e.setAttribute("aria-label", v); if (e.tagName === "IMG") e.alt = v; });
   const ls = $("#langsel"); if (ls) ls.value = LANG;
+  const vt = $("#vtag"); if (vt) vt.textContent = S.version ? "v" + S.version : "";
   applyTheme(document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark");
 }
 function adoptLanguage(st) {  // everything the program sends that depends on the language
