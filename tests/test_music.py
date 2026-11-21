@@ -746,3 +746,21 @@ def test_fetch_errors_are_remembered_not_silent():
     np_ = NowPlaying(fetch=boom)
     np_.poll_once()
     assert np_.data == {} and "winrt gone" in np_.error
+
+
+# ---- 1.3.1: every artist of a Spotify track ----------------------------------------------------------------------
+def test_all_spotify_artists_are_shown():
+    from rhinos_buddy.nowplaying import merge_artists
+    info = {"title": "SymSesh #003 - Linguagem do Dinheiro", "artist": "kouth", "app": "Spotify", "playing": True}
+    win = {"title": "SymSesh #003 - Linguagem do Dinheiro", "artist": "kouth, Cashley, Necroez, SYMSESH"}
+    assert merge_artists(info, win)["artist"] == "kouth, Cashley, Necroez, SYMSESH"
+    assert merge_artists(info, {"title": "Another song", "artist": "kouth, X"}) is info      # other track: untouched
+    assert merge_artists(info, {"title": info["title"], "artist": "Someone else"}) is info    # not an extension: untouched
+    assert merge_artists(info, {}) is info and merge_artists({}, win) == {}
+
+
+def test_non_spotify_sources_skip_the_window_lookup(monkeypatch):
+    from rhinos_buddy import nowplaying as npm
+    monkeypatch.setattr(npm, "_spotify_window_fetch", lambda: (_ for _ in ()).throw(AssertionError("must not run")))
+    info = {"title": "Video", "artist": "Channel", "app": "chrome", "playing": True}
+    assert npm._full_artists(info) is info

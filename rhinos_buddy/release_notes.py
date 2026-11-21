@@ -7,6 +7,15 @@ Add an entry here with every version: a version without notes simply shows no po
 from __future__ import annotations
 
 NOTES: dict[str, dict] = {
+    "1.3.1": {
+        "title": "All artists on screen",
+        "items": [
+            "Correção: no Spotify, o card de música mostrava só o primeiro artista. Agora mostra todos (por exemplo “kouth, Cashley, Necroez, SYMSESH”); se a lista for longa, ela rola como o título.",
+        ],
+        "items_en": [
+            "Fix: with Spotify, the music card showed only the first artist. It now shows all of them (for example “kouth, Cashley, Necroez, SYMSESH”); if the list is long, it scrolls like the title.",
+        ],
+    },
     "1.3.0": {
         "title": "Scrolling song titles",
         "items": [

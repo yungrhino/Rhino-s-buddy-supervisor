@@ -33,6 +33,36 @@ def parse_spotify_title(title: str) -> dict:
     return {"title": song.strip(), "artist": artist.strip(), "app": "Spotify", "playing": True}
 
 
+def merge_artists(info: dict, window: dict) -> dict:
+    """Spotify tells the Windows media session only the FIRST artist, while its window title lists them all
+    ("kouth, Cashley, Necroez, SYMSESH - Song").  When both describe the same track and the window's list simply
+    extends the session's artist, use the complete list."""
+    if not info or not window or info.get("title") != window.get("title"):
+        return info
+    short, full = (info.get("artist") or "").strip(), (window.get("artist") or "").strip()
+    if short and full != short and full.lower().startswith(short.lower()) and len(full) > len(short):
+        return {**info, "artist": full}
+    return info
+
+
+_artist_cache: dict = {}
+
+
+def _full_artists(info: dict) -> dict:
+    """Complete the artist list of a Spotify track from the Spotify window title (read once per track)."""
+    if "spotify" not in (info.get("app") or "").lower() or not info.get("artist"):
+        return info
+    key = (info.get("title"), info.get("artist"))
+    if key not in _artist_cache:
+        _artist_cache.clear()
+        try:
+            _artist_cache[key] = _spotify_window_fetch()
+        except Exception as e:
+            log.debug("window title read failed: %s", e)
+            _artist_cache[key] = {}
+    return merge_artists(info, _artist_cache[key])
+
+
 FRESH_AGE = 5.0  # a position stamped less than this long ago is trusted as "the player just told us"
 
 
@@ -195,7 +225,7 @@ def _spotify_window_fetch() -> dict:
 
 def default_fetch() -> dict:
     try:
-        return _winrt_fetch()
+        return _full_artists(_winrt_fetch())
     except ImportError:
         pass
     except Exception as e:
