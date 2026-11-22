@@ -257,18 +257,34 @@ def test_old_settings_folder_is_copied_once(tmp_path):
     assert appdata.migrate_legacy_home(tmp_path / "x", [tmp_path / "missing"]) is False
 
 
-def test_app_identity_is_renamed():
+def _identity_leftovers(root):
+    """Lines that still use the old application name, outside the files that clean it up on purpose."""
     import re
-    from pathlib import Path
-    root = Path(__file__).resolve().parent.parent
     leftovers = []
     for f in list(root.rglob("*.py")) + list(root.rglob("*.html")) + list(root.rglob("*.md")) + list(root.rglob("*.bat")):
-        if "__pycache__" in f.parts or f.name in ("test_runner.py", "appdata.py", "autostart.py", "Uninstall Rhinos Buddy Supervisor.bat"):  # these clean up / migrate the old name on purpose
+        if "__pycache__" in f.parts or ".git" in f.parts:
+            continue
+        # These clean up / migrate the old name on purpose.  Every uninstaller counts, whatever it is called: extracting a
+        # new zip over an old checkout leaves the old file name (e.g. "Desinstalar ... .bat") next to the new one.
+        if f.name in ("test_runner.py", "appdata.py", "autostart.py") or (f.suffix == ".bat" and "Rhinos Buddy Supervisor" in f.name):
             continue
         for n, line in enumerate(f.read_text("utf-8").splitlines(), 1):
             if re.search(r"subscreen", line, re.I) and "nome antigo" not in line and "old name" not in line:
                 leftovers.append(f"{f.name}:{n}: {line.strip()[:80]}")
-    assert not leftovers, leftovers
+    return leftovers
+
+
+def test_app_identity_is_renamed():
+    from pathlib import Path
+    assert not _identity_leftovers(Path(__file__).resolve().parent.parent)
+
+
+def test_identity_check_ignores_uninstallers_under_any_name(tmp_path):
+    for name in ("Uninstall Rhinos Buddy Supervisor.bat", "Desinstalar Rhinos Buddy Supervisor.bat"):
+        (tmp_path / name).write_text("set OLDDATA=%APPDATA%\\Subscreen\n", "utf-8")
+    assert _identity_leftovers(tmp_path) == []
+    (tmp_path / "other.bat").write_text("echo Subscreen\n", "utf-8")             # a real leftover is still caught
+    assert len(_identity_leftovers(tmp_path)) == 1
 
 
 def test_license_collector_gathers_texts_and_reports_missing(tmp_path):
@@ -306,8 +322,12 @@ def test_release_readme_matches_the_current_version():
     from rhinos_buddy import __version__, __version_title__
     root = Path(__file__).resolve().parent.parent
     files = sorted(p.name for p in root.glob("README_v*.md"))
-    assert files == [f"README_v{__version__}.md"]                               # only the current version's notes at the root
-    text = (root / files[0]).read_text("utf-8")
+    # The zip carries only the current notes.  A checkout that a new zip was extracted over may still hold older
+    # README_v*.md files (extracting never deletes), so only a missing or *newer* one is an error.
+    assert f"README_v{__version__}.md" in files
+    key = lambda n: tuple(int(x) for x in n[len("README_v"):-len(".md")].split("."))  # noqa: E731
+    assert all(key(n) <= key(f"README_v{__version__}.md") for n in files)
+    text = (root / f"README_v{__version__}.md").read_text("utf-8")
     assert __version__ in text and __version_title__ in text
     assert (root / "docs" / "releases" / f"v{__version__}.md").read_text("utf-8") == text
     assert f"| {__version__} |" in (root / "docs" / "releases" / "HISTORICO.md").read_text("utf-8")

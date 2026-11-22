@@ -7,6 +7,17 @@ Add an entry here with every version: a version without notes simply shows no po
 from __future__ import annotations
 
 NOTES: dict[str, dict] = {
+    "1.5.0": {
+        "title": "Stable repository checks",
+        "items": [
+            "Correção para quem publica no GitHub: os testes automáticos falhavam quando restava no repositório o desinstalador com o nome antigo (“Desinstalar …”) ou notas de versões antigas, o que acontece ao extrair o zip novo por cima da pasta antiga. As verificações agora toleram esses arquivos.",
+            "O programa em si não mudou.",
+        ],
+        "items_en": [
+            "Fix for GitHub users: the automated tests failed when the old-named uninstaller (“Desinstalar …”) or older release notes were left in the repository, which happens when a new zip is extracted over the old folder. The checks now tolerate those files.",
+            "The program itself did not change.",
+        ],
+    },
     "1.4.0": {
         "title": "Phone view with QR code",
         "items": [

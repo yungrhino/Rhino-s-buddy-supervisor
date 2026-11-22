@@ -4,6 +4,7 @@ Cada versão tem suas notas completas em `docs/releases/vX.Y.Z.md` (texto pronto
 
 | Versão | Título | Resumo |
 |---|---|---|
+| 1.5.0 | Stable repository checks | repository checks tolerate leftover old uninstaller/notes after extracting a zip over an old checkout (CI fix) |
 | 1.4.0 | Phone view with QR code | view-only phone page over the local network (QR code, token, separate LAN-only server, off by default) |
 | 1.3.1 | All artists on screen | Spotify tracks show every artist (read from the Spotify window title) |
 | 1.3.0 | Scrolling song titles | long titles/artists scroll in the music card (option), media detection checks all Windows sessions (browser/YouTube), GitHub link next to the version |
