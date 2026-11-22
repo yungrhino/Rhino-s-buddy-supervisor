@@ -77,7 +77,10 @@ class App:
     def __init__(self, home: Path, runner: Runner, port: int):
         self.home, self.runner, self.port = home, runner, port
         self.server: _Server | None = None
-        self.phone = phone_mod.PhoneAccess(home, frame=runner.preview_jpeg, main_port=port)
+        self.current = runner.layout      # the last saved layout (the runner applies it on its next tick, so it can lag a moment)
+        self.rev = 0                      # bumped on every saved layout: editors compare it to notice each other's changes
+        self._layout_lock = threading.Lock()
+        self.phone = phone_mod.PhoneAccess(home, frame=runner.preview_jpeg, main_port=port, api=self)
         i18n.set_lang(appdata.load_prefs(home)["lang"])  # the saved interface language
 
     # ------------------------------------------------------------------ data for the UI
@@ -85,7 +88,7 @@ class App:
         return _clean({
             "version": __version__,
             "version_title": __version_title__,
-            "layout": self.runner.layout,
+            "layout": self.current,
             "catalog": L.catalog(),
             "status": self.runner.status(),
             "lang": i18n.lang(),
@@ -95,7 +98,45 @@ class App:
             "autostart": {"supported": autostart.supported(), "enabled": autostart.is_enabled()},
             "home": str(self.home),
             "whatsnew": self.whatsnew(),
+            "rev": self.rev,
         })
+
+    # ------------------------------------------------------------------ shared by the PC editor and the phone editor
+    def save_layout(self, layout, rev=None) -> tuple[dict, int]:
+        """Apply + store a layout.  ``rev`` (what the editor last saw) must still be current, or someone else changed it."""
+        if not isinstance(layout, dict):
+            return {"error": i18n.t("Layout inválido")}, 400
+        with self._layout_lock:
+            if rev is not None and str(rev) != str(self.rev):
+                return {"error": i18n.t("O layout foi alterado em outro aparelho. Os dados foram atualizados."), "conflict": True, "rev": self.rev,
+                        "layout": self.current}, 409
+            norm = self.runner.apply(layout)
+            appdata.save_layout(self.home, norm)
+            self.current = norm
+            self.rev += 1
+            return {"layout": norm, "rev": self.rev}, 200
+
+    def remote_state(self) -> dict:
+        """The editor's state as the phone gets it: no folder paths, nothing about Windows start-up or the phone switch."""
+        st = self.state()
+        st.update(home="", autostart={"supported": False, "enabled": False}, whatsnew={"show": False, "hide": True, "notes": None},
+                  lang_chosen=True)
+        return st
+
+    def remote_status(self) -> dict:
+        return {**self.runner.status(), "rev": self.rev}
+
+    def media(self, name: str):
+        f = self.home / "media" / name
+        if name and f.is_file() and f.suffix.lower() in appdata.MEDIA_EXT:
+            return f.read_bytes(), mimetypes.guess_type(name)[0] or "application/octet-stream"
+        return None
+
+    def template(self, name: str, orient: str):
+        if name not in L.TEMPLATES or orient not in dict(L.ROTATIONS):
+            return None
+        cols, rows = L.grid_size(orient)
+        return {"slots": L.template(name, cols, rows)}
 
     def phone_status(self) -> dict:
         st = self.phone.status()
@@ -182,7 +223,7 @@ def make_handler(app: App):
                 if path == "/api/state":
                     return self._json(app.state())
                 if path == "/api/status":
-                    return self._json({**app.runner.status(), "phone_on": app.phone.running})
+                    return self._json({**app.runner.status(), "phone_on": app.phone.running, "rev": app.rev})
                 if path == "/api/phone":
                     return self._json(app.phone_status())
                 if path == "/api/ports":
@@ -225,9 +266,8 @@ def make_handler(app: App):
                     if raw is None:
                         return self._error(413, "Corpo inválido ou grande demais")
                     layout = json.loads(raw.decode("utf-8"))
-                    norm = app.runner.apply(layout)
-                    appdata.save_layout(app.home, norm)
-                    return self._json({"layout": norm})
+                    out, code = app.save_layout(layout, parse_qs(u.query).get("rev", [None])[0])
+                    return self._json(out, code)
                 if u.path == "/api/upload":
                     raw = self._body(appdata.MAX_MEDIA_BYTES + 1024)
                     if raw is None:
@@ -263,8 +303,11 @@ def make_handler(app: App):
                     return self._json(app.state())
                 if u.path == "/api/phone":  # phone access: on/off and "new link" (only from the editor, i.e. this PC)
                     body = json.loads((self._body(1000) or b"{}").decode("utf-8"))
-                    en = body.get("enabled")
-                    app.phone.configure(enabled=en if isinstance(en, bool) else None, rotate=body.get("rotate") is True)
+                    en, ed = body.get("enabled"), body.get("edit")
+                    dc = body.get("disconnect")
+                    app.phone.configure(enabled=en if isinstance(en, bool) else None, edit=ed if isinstance(ed, bool) else None,
+                                        renew=body.get("renew") is True, disconnect=dc if isinstance(dc, str) else None,
+                                        disconnect_all=body.get("disconnect_all") is True)
                     return self._json(app.phone_status())
                 if u.path == "/api/notify_test":
                     app.runner.notify_test()
@@ -281,9 +324,8 @@ def make_handler(app: App):
                         return self._error(400, str(e))
                     return self._json({"supported": True, "enabled": autostart.is_enabled()})
                 if u.path == "/api/reset":
-                    norm = app.runner.apply(L.default_layout())
-                    appdata.save_layout(app.home, norm)
-                    return self._json({"layout": norm})
+                    out, code = app.save_layout(L.default_layout())
+                    return self._json(out, code)
                 if u.path == "/api/quit":
                     self._json({"ok": True})
                     threading.Thread(target=app.server.shutdown, daemon=True).start()

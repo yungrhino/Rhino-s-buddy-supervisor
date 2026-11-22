@@ -7,6 +7,23 @@ Add an entry here with every version: a version without notes simply shows no po
 from __future__ import annotations
 
 NOTES: dict[str, dict] = {
+    "1.6.0": {
+        "title": "Phone panel and volume",
+        "items": [
+            "Novo: o painel completo no celular. Escaneie o QR code em Sistema → Acesso pelo celular e o mesmo painel abre no navegador do celular, adaptado à tela pequena, para editar a telinha. Ligue “Permitir também editar o painel pelo celular” para poder alterar (desligado por padrão); o botão “Ver tela” mostra só a imagem em tela cheia.",
+            "Pareamento mais seguro: o QR vale 5 minutos e só funciona uma vez (depois aparece um novo), com contagem regressiva. Quem conecta fica conectado até fechar o navegador ou você desconectar. A lista de aparelhos conectados fica no PC, com botão Desconectar.",
+            "PC e celular ficam sincronizados: o que você muda em um aparece no outro e na tela. Se os dois salvarem ao mesmo tempo, vale o que foi salvo primeiro e o outro é atualizado com um aviso.",
+            "Pelo celular não dá para encerrar o programa, mexer no início com o Windows, restaurar padrões nem enviar imagens (isso continua só no PC).",
+            "Card de música: nova opção “Mostrar o volume do PC (%) no canto”, com ícone e porcentagem num canto reservado, sem interferir no título rolante. Mostra “Mudo” quando o som está silenciado.",
+        ],
+        "items_en": [
+            "New: the full panel on your phone. Scan the QR code in System → Phone access and the same panel opens in the phone's browser, adapted to the small screen, so you can edit the little screen. Turn on “Also allow editing the panel from the phone” to make changes (off by default); the “View screen” button shows just the picture, fullscreen.",
+            "Safer pairing: the QR code is valid for 5 minutes and works only once (then a new one appears), with a countdown. Whoever connects stays connected until they close the browser or you disconnect them. The list of connected devices is on the PC, with a Disconnect button.",
+            "PC and phone stay in sync: what you change in one shows up in the other and on the screen. If both save at the same time, the one saved first wins and the other is refreshed with a notice.",
+            "From the phone you cannot quit the program, change Windows start-up, restore defaults or upload images (those stay PC-only).",
+            "Music card: new option “Show the PC volume (%) in the corner”, with an icon and percentage in a reserved corner that never touches the scrolling title. It shows “Muted” when the sound is muted.",
+        ],
+    },
     "1.5.0": {
         "title": "Stable repository checks",
         "items": [

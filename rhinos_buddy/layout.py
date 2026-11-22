@@ -156,6 +156,7 @@ MODULES: dict[str, dict] = {
         O("show_progress", "Card: mostrar barra de progresso e tempo", "bool", True),
         O("show_artist", "Mostrar o artista", "bool", True),
         O("marquee", "Rolar títulos longos (como nos MP3 antigos)", "bool", True),
+        O("show_volume", "Mostrar o volume do PC (%) no canto", "bool", False),
         O("show_viz", "Mostrar visualizador de áudio", "bool", True),
         O("viz_style", "Estilo do visualizador", "choice", "barras", [
             ("barras", "Barras"), ("espelho", "Barras espelhadas"), ("circular", "Circular"), ("pulso", "Pulso (batida)")]),
@@ -595,7 +596,7 @@ def _build_music(c: _Ctx, o: dict, x, y, w, h, col) -> list[dict]:
         size = max(11, min(22, int(th_ / (2.4 if o["show_artist"] else 1.5))))
         wd = {"type": "nowplaying", "x": int(tx), "y": int(ty), "w": max(1, int(tw)), "h": max(1, int(th_)),
                 "size": size, "font": c.font, "font_bold": c.bold, "color": th["text"], "muted": th["muted"],
-                "align": o["align"], "show_artist": o["show_artist"], "marquee": o["marquee"],
+                "align": o["align"], "show_artist": o["show_artist"], "marquee": o["marquee"], "show_volume": o["show_volume"],
                 "interval": 0.125 if o["marquee"] else 2}
         if o["track_layout"] == "capa":
             wd.update(mode="capa", show_cover=o["show_cover"], show_progress=o["show_progress"], accent=col,

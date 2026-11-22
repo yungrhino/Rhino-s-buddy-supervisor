@@ -764,3 +764,95 @@ def test_non_spotify_sources_skip_the_window_lookup(monkeypatch):
     monkeypatch.setattr(npm, "_spotify_window_fetch", lambda: (_ for _ in ()).throw(AssertionError("must not run")))
     info = {"title": "Video", "artist": "Channel", "app": "chrome", "playing": True}
     assert npm._full_artists(info) is info
+
+
+# ---- 1.6.0: optional PC volume in the corner of the music card ----------------------------------------------------
+class FakeVol:
+    def __init__(self, v):
+        self.v = v
+
+    def get(self):
+        return self.v
+
+
+def _vol_widget(vol, show=True, w=300, mode="texto", title="A very very long song title that cannot possibly fit"):
+    from rhinos_buddy.widgets import Context, NowPlayingWidget
+    info = {"title": title, "artist": "Artist", "playing": True}
+    fv = FakeVol(vol)
+    nw = NowPlayingWidget({"w": w, "h": 60, "mode": mode, "size": 18, "show_volume": show, "show_cover": False, "show_progress": False},
+                          Context(metrics=None, base_dir=Path("."), nowplaying=FakeNP(info), volume=fv))
+    nw.clock = lambda: 0.0
+    return nw, fv
+
+
+def test_volume_is_optional_and_off_by_default(tmp_path):
+    lay = L.normalize({"pages": [{"slots": [slot()]}]})
+    w = [x for x in L.to_config(lay, Path("."))["page"][0]["widget"] if x["type"] == "nowplaying"][0]
+    assert w["show_volume"] is False
+    lay = L.normalize({"pages": [{"slots": [slot(show_volume=True)]}]})
+    w = [x for x in L.to_config(lay, Path("."))["page"][0]["widget"] if x["type"] == "nowplaying"][0]
+    assert w["show_volume"] is True
+    nw, _ = _vol_widget((64, False), show=False)
+    nw.update(); nw.render()
+    assert nw._vol is None                                                 # not even read when the option is off
+
+
+def test_volume_has_its_own_corner_and_the_title_scrolls_in_the_rest():
+    off, _ = _vol_widget((64, False), show=False)
+    off.update(); a = np.asarray(off.render().convert("RGBA"))[..., 3] > 0
+    on, _ = _vol_widget((64, False))
+    on.update(); b = np.asarray(on.render().convert("RGBA"))[..., 3] > 0
+    corner = slice(300 - 60, 300)                                          # the right-hand corner of the first line
+    assert b[:24, corner].sum() > 40                                       # icon + "64%" are drawn there
+    seen = {}
+    orig_vol, orig_scroll = on._draw_volume, on._draw_scrolling
+    on._draw_volume = lambda *a, **k: seen.setdefault("bw", orig_vol(*a, **k))
+    on._draw_scrolling = lambda img, text, f, col, x0, width, y, lh, tw: (seen.update(room=width), orig_scroll(img, text, f, col, x0, width, y, lh, tw))
+    on._scroll_t0 = -100.0                                                 # far into the scroll: the title is on the move
+    for t in (3.0, 5.0, 9.0):
+        on.clock = lambda t=t: t
+        on.update()
+        on.render()
+        assert seen["room"] + 8 <= 300 - seen["bw"], t                     # the scrolling window ends before the volume corner starts
+        strip_cols = np.asarray(on.render().convert("RGBA"))[..., 3][:24, 300 - seen["bw"] - 8:300 - seen["bw"]] > 0
+        assert not strip_cols.any(), t                                     # ... and nothing of the title lands in the gap
+    assert on._overflow is True
+
+
+def test_volume_changes_redraw_and_mute_is_shown():
+    nw, fv = _vol_widget((64, False), title="Short")
+    assert nw.update() is True and nw.update() is False
+    fv.v = (65, False)
+    assert nw.update() is True                                             # the number moved: redraw
+    before = np.asarray(nw.render())
+    fv.v = (65, True)
+    assert nw.update() is True
+    assert nw._volume_label((65, True)) == "Mudo" and nw._volume_label((65, False)) == "65%"
+    assert not np.array_equal(before, np.asarray(nw.render()))
+    fv.v = None                                                            # unreadable: nothing is drawn, nothing crashes
+    assert nw.update() is True
+    nw.render()
+
+
+def test_volume_is_left_out_when_there_is_no_room():
+    nw, _ = _vol_widget((64, False), w=120, title="Short")
+    nw.update()
+    img = np.asarray(nw.render().convert("RGBA"))[..., 3] > 0
+    assert not img[:24, 70:].any()                                         # 120 px of text: the title keeps the space
+
+
+def test_volume_reader_is_cached_and_survives_errors():
+    from rhinos_buddy import volume
+    t = {"v": 0.0}
+    calls = []
+    v = volume.Volume(reader=lambda: (calls.append(1), (50, False))[1], clock=lambda: t["v"])
+    assert v.get() == (50, False) and v.get() == (50, False) and len(calls) == 1
+    t["v"] = 1.0
+    v.get()
+    assert len(calls) == 2
+    bad = volume.Volume(reader=lambda: (_ for _ in ()).throw(OSError("no device")), clock=lambda: t["v"])
+    assert bad.get() is None
+    assert [volume.percent(x) for x in (0, 0.644, 1, 1.5, -1)] == [0, 64, 100, 100, 0]
+    import sys
+    if sys.platform != "win32":
+        assert volume.Volume().get() is None                               # not Windows: unknown, never an error

@@ -1,16 +1,20 @@
-"""Phone access: look at the screen from a phone on the same Wi-Fi.
+"""Phone access: look at (and optionally edit) the screen from a phone on the same Wi-Fi.
 
-Security model (this is the only part of the program that listens on the network, so it is deliberately tiny):
+Security model.  This is the only part of the program that listens on the network, so it is deliberately small:
 
 * OFF by default.  Nothing but 127.0.0.1 is reachable until the user turns it on in System.
-* It is a *separate* server from the editor (own port, ``port + 1``), bound to the PC's private LAN address only -
-  never ``0.0.0.0`` - and it serves just two things: the viewer page and the current frame as an image.
-  The editor and its API (layout, uploads, quit...) stay on 127.0.0.1 and are not reachable from the network.
-* Every request needs the secret ``t`` token (128 bits, compared in constant time).  The token is shown only in the QR
-  code / link on the PC and can be replaced at any time, which invalidates the old link at once.
-* Only clients with a private or loopback address are served (so a router that forwards the port to the internet
-  still gets nothing), and the Host header must be one of this PC's own addresses.
-* Read-only (GET): no way to change anything from the phone.  Repeated wrong tokens lock that address out for a while.
+* A *separate* server from the editor's own one (port + 1), bound to the PC's private LAN address only - never
+  ``0.0.0.0``.  The editor on 127.0.0.1 and its full API are not reachable from the network.
+* **Pairing, not a fixed link.**  The QR code holds a one-time pairing code that is valid for 5 minutes and dies when
+  it is used (a new one appears at once).  Scanning it gives that phone a *session*: a random 256-bit id kept in a
+  browser session cookie (HttpOnly, SameSite=Strict, no expiry date - closing the browser ends it).  Sessions live in
+  memory only: closing the program, turning phone access off, or "Disconnect" on the PC ends them.
+* Viewing is the default.  **Editing needs its own switch** (off by default) and then only a small allow-list of the
+  editor's calls works (read state, save the layout, show the page): nothing that quits the program, touches Windows
+  start-up, restores defaults or uploads files.
+* Only private-network clients are served and the Host header must be one of this PC's addresses.  Wrong pairing
+  codes / unknown session ids lock that address out for a while.  Changing calls need the custom header the editor
+  sends (a plain cross-site form cannot) on top of SameSite=Strict.
 """
 
 from __future__ import annotations
@@ -23,21 +27,25 @@ import secrets
 import socket
 import threading
 import time
+from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 from . import appdata, qr
 
 log = logging.getLogger("rhinos_buddy.phone")
 
-MAX_FAILS = 8          # wrong tokens allowed ...
+PAIR_SECONDS = 300.0   # how long a QR code can be used to connect
+MAX_FAILS = 8          # wrong codes / unknown sessions allowed ...
 FAIL_WINDOW = 60.0     # ... within this many seconds, before the address is locked out
 LOCK_SECONDS = 300.0
+MAX_SESSIONS = 20
+COOKIE = "rb_s"
 
 
-def new_token() -> str:
-    return secrets.token_urlsafe(16)  # 128 bits
+def new_secret() -> str:
+    return secrets.token_urlsafe(16)  # 128 bits (pairing code); sessions use 32 bytes
 
 
 def lan_ip() -> str | None:
@@ -69,8 +77,16 @@ def is_private_client(ip: str) -> bool:
     return any(a.version == n.version and a in n for n in _LOCAL_NETS)
 
 
+def short_ua(ua: str) -> str:
+    u = ua or ""
+    for key, name in (("iPhone", "iPhone"), ("iPad", "iPad"), ("Android", "Android"), ("Windows", "Windows"), ("Macintosh", "Mac"), ("Linux", "Linux")):
+        if key in u:
+            return name
+    return (u[:24] or "?")
+
+
 class Lockout:
-    """Counts wrong tokens per client address."""
+    """Counts wrong secrets per client address."""
 
     def __init__(self, clock=time.monotonic):
         self.clock, self._fails, self._locked = clock, {}, {}
@@ -109,8 +125,11 @@ class _PhoneServer(ThreadingHTTPServer):
 
 _DENIED_PAGE = (b'<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
                 b'<body style="background:#000;color:#ff8787;font:16px system-ui;padding:24px;text-align:center">'
-                b'<p>Link inv\xc3\xa1lido ou trocado. Escaneie o QR code de novo no PC.</p>'
-                b'<p>Invalid or replaced link. Scan the QR code on the PC again.</p>')
+                b'<p>Sess\xc3\xa3o inv\xc3\xa1lida ou encerrada. Escaneie o QR code de novo no PC.</p>'
+                b'<p>Invalid or ended session. Scan the QR code on the PC again.</p>')
+
+EDITOR_CSP = ("default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'")
+VIEWER_CSP = "default-src 'none'; img-src blob:; connect-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'"
 
 
 def _make_handler(access: "PhoneAccess"):
@@ -137,63 +156,221 @@ def _make_handler(access: "PhoneAccess"):
         def _text(self, code: int, msg: str):
             self._send(code, msg.encode("utf-8"), "text/plain; charset=utf-8")
 
-        def _method_not_allowed(self):
-            self._send(405, b"read-only", "text/plain; charset=utf-8", {"Allow": "GET"})
+        def _json(self, obj, code=200):
+            self._send(code, json.dumps(obj, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
 
-        do_POST = do_PUT = do_DELETE = do_PATCH = do_HEAD = do_OPTIONS = _method_not_allowed  # noqa: N815
+        def _redirect(self, where: str, extra: dict | None = None):
+            self._send(303, b"", "text/plain", {"Location": where, **(extra or {})})
+
+        def _method_not_allowed(self):
+            self._send(405, b"method not allowed", "text/plain; charset=utf-8", {"Allow": "GET, POST"})
+
+        do_PUT = do_DELETE = do_PATCH = do_HEAD = do_OPTIONS = _method_not_allowed  # noqa: N815
+
+        # -- common gate: network, host, lock-out, session
+        def _gate(self, need_session: bool = True):
+            ip = self.client_address[0]
+            if not is_private_client(ip) or not access.host_ok(self.headers.get("Host") or ""):
+                self._text(403, "forbidden")
+                return None
+            if access.lockout.blocked(ip):
+                self._send(429, b"too many attempts", "text/plain; charset=utf-8", {"Retry-After": str(int(LOCK_SECONDS))})
+                return None
+            if not need_session:
+                return ip
+            raw = self.headers.get("Cookie") or ""
+            sid = ""
+            try:
+                jar = cookies.SimpleCookie()
+                jar.load(raw)
+                sid = jar[COOKIE].value if COOKIE in jar else ""
+            except cookies.CookieError:
+                sid = ""
+            ses = access.session(sid)
+            if ses is None:
+                if sid:                       # a cookie we do not know: someone guessing (or an ended session)
+                    access.lockout.fail(ip)
+                u = urlparse(self.path).path
+                if u in ("/", "/m"):
+                    self._send(403, _DENIED_PAGE, "text/html; charset=utf-8")
+                else:
+                    self._text(403, "forbidden")
+                return None
+            ses.touch(ip, self.headers.get("User-Agent") or "")
+            return ses
 
         def do_GET(self):  # noqa: N802
-            ip = self.client_address[0]
-            if not is_private_client(ip):
-                return self._text(403, "forbidden")
-            if not access.host_ok(self.headers.get("Host") or ""):
-                return self._text(403, "forbidden")
-            if access.lockout.blocked(ip):
-                return self._send(429, b"too many attempts", "text/plain; charset=utf-8", {"Retry-After": str(int(LOCK_SECONDS))})
             u = urlparse(self.path)
-            token = (parse_qs(u.query).get("t") or [""])[0]
-            if not access.token_ok(token):
-                access.lockout.fail(ip)
-                if u.path == "/m":  # a stale QR code: say what to do (the same answer for any wrong token)
+            q = parse_qs(u.query)
+            if u.path == "/p":                                   # pairing: the QR code points here
+                ip = self._gate(need_session=False)
+                if ip is None:
+                    return
+                sid = access.redeem((q.get("c") or [""])[0], ip, self.headers.get("User-Agent") or "")
+                if not sid:
+                    access.lockout.fail(ip)
                     return self._send(403, _DENIED_PAGE, "text/html; charset=utf-8")
-                return self._text(403, "forbidden")
-            access.lockout.ok(ip)
+                access.lockout.ok(ip)
+                return self._redirect("/", {"Set-Cookie": f"{COOKIE}={sid}; Path=/; HttpOnly; SameSite=Strict"})  # session cookie: no Max-Age
+            ses = self._gate()
+            if ses is None:
+                return
             try:
                 if u.path == "/m":
-                    return self._send(200, access.page(), "text/html; charset=utf-8", {
-                        "Content-Security-Policy": "default-src 'none'; img-src blob:; connect-src 'self'; "
-                                                   "style-src 'unsafe-inline'; script-src 'unsafe-inline'"})
+                    return self._send(200, access.page(), "text/html; charset=utf-8", {"Content-Security-Policy": VIEWER_CSP})
                 if u.path == "/m/frame.jpg":
                     return self._send(200, access.frame(), "image/jpeg")
+                if u.path in ("/", "/index.html"):
+                    if not access.edit_allowed():
+                        return self._redirect("/m")
+                    return self._send(200, access.editor_page(), "text/html; charset=utf-8", {"Content-Security-Policy": EDITOR_CSP})
+                if u.path.startswith("/api/") and access.edit_allowed() and access.api is not None:
+                    return self._editor_get(u.path, q)
                 return self._text(404, "not found")
             except Exception:
                 log.exception("phone GET failed")
                 return self._text(500, "error")
 
+        def _editor_get(self, path, q):
+            api = access.api
+            if path == "/api/state":
+                return self._json(api.remote_state())
+            if path == "/api/status":
+                return self._json(api.remote_status())
+            if path == "/api/sensors":
+                return self._json(api.sensors())
+            if path == "/api/preview.png":
+                return self._send(200, api.runner.preview_png(), "image/png")
+            if path.startswith("/api/media/"):
+                data = api.media(Path(unquote(path[len("/api/media/"):])).name)
+                return self._send(200, data[0], data[1]) if data else self._json({"error": "Arquivo não encontrado"}, 404)
+            if path == "/api/template":
+                r = api.template((q.get("name") or ["vazio"])[0], (q.get("orientation") or ["landscape"])[0])
+                return self._json(r) if r is not None else self._json({"error": "Modelo inválido"}, 400)
+            return self._text(404, "not found")
+
+        def do_POST(self):  # noqa: N802
+            ses = self._gate()
+            if ses is None:
+                return
+            if self.headers.get("X-Rhinos-Buddy") != "1":
+                return self._text(403, "forbidden")
+            if not access.edit_allowed() or access.api is None:
+                return self._text(403, "editing from the phone is off")
+            u = urlparse(self.path)
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                n = -1
+            if n < 0 or n > 2_000_000:
+                return self._json({"error": "Corpo inválido ou grande demais"}, 413)
+            raw = self.rfile.read(n) if n else b""
+            try:
+                body = json.loads(raw.decode("utf-8") or "{}")
+            except ValueError:
+                return self._json({"error": "JSON inválido"}, 400)
+            try:
+                if u.path == "/api/layout":
+                    rev = (parse_qs(u.query).get("rev") or [None])[0]
+                    return self._json(*access.api.save_layout(body, rev))
+                if u.path == "/api/focus":
+                    access.api.runner.focus(body.get("page") if isinstance(body.get("page"), int) else 0)
+                    return self._json({"ok": True})
+                return self._text(404, "not found")
+            except Exception:
+                log.exception("phone POST failed")
+                return self._text(500, "error")
+
     return Handler
 
 
-class PhoneAccess:
-    """Owns the optional LAN server and its token; the editor drives it through ``configure``."""
+class _Session:
+    def __init__(self, ip: str, ua: str, clock):
+        self.created = self.last = clock()
+        self.ip, self.ua = ip, short_ua(ua)
+        self._clock = clock
 
-    def __init__(self, home: Path, frame, page: bytes | None = None, main_port: int = 8765, bind_ip=None, ip_finder=lan_ip):
-        self.home, self.frame, self.main_port = Path(home), frame, main_port
+    def touch(self, ip: str, ua: str) -> None:
+        self.last = self._clock()
+
+
+class PhoneAccess:
+    """Owns the optional LAN server, the pairing code and the sessions; the editor drives it through ``configure``."""
+
+    def __init__(self, home: Path, frame, page: bytes | None = None, main_port: int = 8765, bind_ip=None, ip_finder=lan_ip,
+                 api=None, clock=time.monotonic, editor_page: bytes | None = None):
+        self.home, self.frame, self.main_port, self.api = Path(home), frame, main_port, api
         self.port = main_port + 1
-        self._page = page
-        self._bind_ip, self._ip_finder = bind_ip, ip_finder   # bind_ip: fixed address (tests); else the LAN address
-        self.lockout = Lockout()
+        self._page, self._editor_page = page, editor_page
+        self._bind_ip, self._ip_finder, self.clock = bind_ip, ip_finder, clock
+        self.lockout = Lockout(clock)
         self.server: _PhoneServer | None = None
         self.thread: threading.Thread | None = None
         self.error = ""
         self.ip = ""
+        self._lock = threading.Lock()
+        self._sessions: dict[str, _Session] = {}
+        self._pair_code, self._pair_expires = "", 0.0
         prefs = appdata.load_prefs(self.home)
-        self.enabled = prefs["phone_enabled"]
-        self.token = prefs["phone_token"] or new_token()
+        self.enabled, self.edit = prefs["phone_enabled"], prefs["phone_edit"]
+
+    # -- pairing and sessions
+    def _fresh_pair(self) -> tuple[str, float]:
+        now = self.clock()
+        if not self._pair_code or now >= self._pair_expires:
+            self._pair_code, self._pair_expires = new_secret(), now + PAIR_SECONDS
+        return self._pair_code, self._pair_expires - now
+
+    def pair_code(self) -> tuple[str, float]:
+        with self._lock:
+            return self._fresh_pair()
+
+    def renew_pair(self) -> None:
+        with self._lock:
+            self._pair_code = ""
+            self._fresh_pair()
+
+    def redeem(self, code: str, ip: str, ua: str) -> str:
+        """Use the pairing code: returns a new session id, or '' when the code is wrong, expired or already used."""
+        with self._lock:
+            cur, _ = self._fresh_pair()
+            if not code or not hmac.compare_digest(code.encode("utf-8"), cur.encode("utf-8")):
+                return ""
+            sid = secrets.token_urlsafe(32)
+            if len(self._sessions) >= MAX_SESSIONS:  # drop the one unused for longest
+                self._sessions.pop(min(self._sessions, key=lambda k: self._sessions[k].last))
+            self._sessions[sid] = _Session(ip, ua, self.clock)
+            self._pair_code = ""                     # single use: the next QR code is a different one
+            self._fresh_pair()
+            return sid
+
+    def session(self, sid: str) -> _Session | None:
+        if not sid:
+            return None
+        with self._lock:
+            return self._sessions.get(sid)
+
+    def devices(self) -> list[dict]:
+        now = self.clock()
+        with self._lock:
+            return [{"id": sid[:8], "ip": s.ip, "device": s.ua, "since": int(now - s.created), "idle": int(now - s.last)}
+                    for sid, s in sorted(self._sessions.items(), key=lambda kv: kv[1].created)]
+
+    def disconnect(self, short_id: str) -> bool:
+        with self._lock:
+            hit = [sid for sid in self._sessions if sid[:8] == short_id]
+            for sid in hit:
+                del self._sessions[sid]
+            return bool(hit)
+
+    def disconnect_all(self) -> None:
+        with self._lock:
+            self._sessions.clear()
+
+    def edit_allowed(self) -> bool:
+        return self.edit
 
     # -- checks used by the handler
-    def token_ok(self, given: str) -> bool:
-        return bool(given) and hmac.compare_digest(given.encode("utf-8"), self.token.encode("utf-8"))
-
     def host_ok(self, host: str) -> bool:
         h = host.strip().lower()
         if not h.endswith(f":{self.port}"):
@@ -208,10 +385,18 @@ class PhoneAccess:
 
         return (WEB_DIR / "mobile.html").read_bytes()
 
+    def editor_page(self) -> bytes:
+        if self._editor_page is not None:
+            return self._editor_page
+        from .app import WEB_DIR
+
+        html = (WEB_DIR / "index.html").read_bytes()
+        return html.replace(b"<head>", b"<head><script>window.RB_REMOTE=true;</script>", 1)  # tells the page it is the phone's copy
+
     # -- lifecycle
     def _save(self) -> None:
         prefs = appdata.load_prefs(self.home)
-        prefs["phone_enabled"], prefs["phone_token"] = self.enabled, self.token
+        prefs["phone_enabled"], prefs["phone_edit"] = self.enabled, self.edit
         appdata.save_prefs(self.home, prefs)
 
     def start(self) -> bool:
@@ -236,17 +421,25 @@ class PhoneAccess:
 
     def stop(self) -> None:
         srv, self.server = self.server, None
+        self.disconnect_all()                    # sessions never outlive the server
         if srv is not None:
             srv.shutdown()
             srv.server_close()
             log.info("Phone access stopped")
 
-    def configure(self, enabled: bool | None = None, rotate: bool = False) -> None:
-        if rotate:
-            self.token = new_token()
+    def configure(self, enabled: bool | None = None, edit: bool | None = None, renew: bool = False,
+                  disconnect: str | None = None, disconnect_all: bool = False) -> None:
+        if edit is not None:
+            self.edit = edit
         if enabled is not None:
             self.enabled = enabled
         self._save()
+        if disconnect:
+            self.disconnect(disconnect)
+        if disconnect_all:
+            self.disconnect_all()
+        if renew:
+            self.renew_pair()
         if self.enabled:
             if self.server is None:
                 self.start()
@@ -264,11 +457,16 @@ class PhoneAccess:
         return self.server is not None
 
     def url(self) -> str:
-        return f"http://{self.ip}:{self.port}/m?t={self.token}" if self.running else ""
+        """The address inside the QR code (one-time pairing link)."""
+        return f"http://{self.ip}:{self.port}/p?c={self.pair_code()[0]}" if self.running else ""
 
     def status(self) -> dict:
-        out = {"enabled": self.enabled, "running": self.running, "port": self.port, "error": self.error,
-               "ip": self.ip if self.running else "", "url": self.url(), "svg": ""}
-        if out["url"]:
+        out = {"enabled": self.enabled, "running": self.running, "edit": self.edit, "port": self.port, "error": self.error,
+               "ip": self.ip if self.running else "", "url": "", "svg": "", "seconds_left": 0, "pair_seconds": int(PAIR_SECONDS),
+               "devices": self.devices() if self.running else []}
+        if self.running:
+            code, left = self.pair_code()
+            out["url"] = f"http://{self.ip}:{self.port}/p?c={code}"
+            out["seconds_left"] = max(0, int(left))
             out["svg"] = qr.to_svg(qr.encode(out["url"]))
         return out

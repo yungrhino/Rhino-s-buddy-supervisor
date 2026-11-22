@@ -217,6 +217,23 @@ EN: dict[str, str] = {
     "A tela deixará de ser atualizada e o programa será fechado. Para voltar a usar, abra-o novamente pelo atalho.":
         "The screen will stop updating and the program will close. To use it again, open it from the shortcut.",
     "Cancelar": "Cancel", "Rhino's Buddy Supervisor encerrado. Você pode fechar esta janela.": "Rhino's Buddy Supervisor has quit. You can close this window.",
+    "Mostrar o volume do PC (%) no canto": "Show the PC volume (%) in the corner", "Mudo": "Muted",
+    # --- phone pairing and editing (1.6.0)
+    "Veja a tela do Buddy no celular (e, se quiser, edite o painel por lá). O celular precisa estar no mesmo Wi-Fi. Fica desligado até você ligar.":
+        "See the Buddy screen on your phone (and, if you want, edit the panel from there). The phone must be on the same Wi-Fi. It stays off until you turn it on.",
+    "Permitir acesso pelo celular": "Allow phone access",
+    "Permitir também editar o painel pelo celular": "Also allow editing the panel from the phone",
+    "O QR expira em {t}": "The QR code expires in {t}",
+    "Aponte a câmera do celular para o QR code. Ele vale por 5 minutos e só funciona uma vez; depois aparece um novo. Quem conectou continua conectado até fechar o navegador ou você desconectar.":
+        "Point the phone camera at the QR code. It is valid for 5 minutes and works only once; then a new one appears. Whoever connected stays connected until they close the browser or you disconnect them.",
+    "Gerar novo QR": "Generate new QR",
+    "Aparelhos conectados ({n})": "Connected devices ({n})", "conectado há {m} min": "connected {m} min ago",
+    "Desconectar": "Disconnect", "Desconectar todos": "Disconnect all", "Nenhum aparelho conectado.": "No device connected.",
+    "Quem conectar vê a tela (inclusive notificações, se houver)": "Whoever connects sees the screen (including notifications, if any)",
+    " e pode editar o painel": " and can edit the panel",
+    ". Desligue quando não precisar: isso desconecta todos. A conexão não é criptografada (HTTP em rede local).": ". Turn it off when you do not need it: that disconnects everyone. The connection is not encrypted (plain HTTP on the local network).",
+    "Layout inválido": "Invalid layout", "Ver tela": "View screen", "Atualizado": "Updated",
+    "O layout foi alterado em outro aparelho. Os dados foram atualizados.": "The layout was changed on another device. The data was refreshed.",
     # --- phone access (1.4.0)
     "Acesso pelo celular": "Phone access",
     "Veja a tela do Buddy no celular, só para olhar (nada pode ser alterado por lá). O celular precisa estar no mesmo Wi-Fi. Fica desligado até você ligar.":

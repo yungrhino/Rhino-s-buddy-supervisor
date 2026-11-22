@@ -4,6 +4,7 @@ Cada versão tem suas notas completas em `docs/releases/vX.Y.Z.md` (texto pronto
 
 | Versão | Título | Resumo |
 |---|---|---|
+| 1.6.0 | Phone panel and volume | full panel on the phone (QR pairing: 5-min single-use code + sessions, optional editing, PC<->phone sync), PC volume % in the music card |
 | 1.5.0 | Stable repository checks | repository checks tolerate leftover old uninstaller/notes after extracting a zip over an old checkout (CI fix) |
 | 1.4.0 | Phone view with QR code | view-only phone page over the local network (QR code, token, separate LAN-only server, off by default) |
 | 1.3.1 | All artists on screen | Spotify tracks show every artist (read from the Spotify window title) |

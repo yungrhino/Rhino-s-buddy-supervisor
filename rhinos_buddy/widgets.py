@@ -46,6 +46,7 @@ class Context:
     decimal: str = "."  # "," for Brazilian-style numbers (11,4 GB)
     audio: object = None       # audio.Analyzer (tests inject a fake; default is the shared one)
     nowplaying: object = None  # nowplaying.NowPlaying (same idea)
+    volume: object = None      # volume.Volume (same idea)
     notifier: object = None    # notifications.Notifier (same idea)
 
 
@@ -750,6 +751,7 @@ class NowPlayingWidget(Widget):
         self._shown = None
         self._info: dict = {}
         self.clock = time.monotonic
+        self._vol = None            # (percent, muted) shown in the reserved corner, when the option is on
         self._overflow = False      # a line is wider than its area (set by the last render)
         self._scroll_t0 = 0.0       # when the current track started scrolling
 
@@ -767,6 +769,22 @@ class NowPlayingWidget(Widget):
         from . import nowplaying
 
         return nowplaying.get_nowplaying()
+
+    def _volume(self):
+        """(percent, muted) of the PC volume when the card is set to show it, else None."""
+        if not self.cfg.get("show_volume", False):
+            return None
+        src = self.ctx.volume
+        if src is None:
+            from . import volume
+
+            src = volume.get_volume()
+        return src.get()
+
+    VOLUME_MIN_ROOM = 150  # px: below this much text width the volume would only crowd the title, so it is left out
+
+    def _volume_label(self, vol) -> str:
+        return i18n.t("Mudo") if vol[1] else f"{vol[0]}%"
 
     # ---- data
     def _position(self, info: dict) -> float | None:
@@ -796,8 +814,9 @@ class NowPlayingWidget(Widget):
             self._scroll_t0 = self.clock()
         if key is not None and self._overflow and self.cfg.get("marquee", True):
             key = key + (self._scroll_step(),)  # the scrolling text changes the picture every step
-        changed = key != self._shown
-        self._shown = key
+        vol = self._volume()
+        changed = key != self._shown or vol != self._vol
+        self._shown, self._vol = key, vol
         return changed
 
     # ---- drawing
@@ -827,20 +846,51 @@ class NowPlayingWidget(Widget):
     def _draw_lines(self, img, d, lines, x0, width, y, align):
         overflow = False
         marquee = self.cfg.get("marquee", True) and self._shown is not None
-        for text, f, col in lines:
+        vol = self._vol if self.cfg.get("show_volume", False) and width >= self.VOLUME_MIN_ROOM else None
+        for n, (text, f, col) in enumerate(lines):
             lh = round(f.size * 1.3)
+            avail = width
+            if n == 0 and vol is not None:
+                # the volume has its own corner on the first line: the (scrolling) title only uses what is left
+                bw = self._draw_volume(img, d, x0 + width, y, lh, vol, f, color(self.cfg.get("muted", "#8b95a7")))
+                avail = width - bw - 8
             tw = d.textlength(text, font=f)
-            if tw > width and marquee:
+            if tw > avail and marquee:
                 overflow = True
-                self._draw_scrolling(img, text, f, col, x0, width, y, lh, tw)
+                self._draw_scrolling(img, text, f, col, x0, avail, y, lh, tw)
             else:
-                text = _ellipsize(d, text, f, width)
+                text = _ellipsize(d, text, f, avail)
                 tw = d.textlength(text, font=f)
-                x = x0 + {"left": 0, "center": (width - tw) / 2, "right": width - tw}[align]
+                x = x0 + {"left": 0, "center": (avail - tw) / 2, "right": avail - tw}[align]
                 d.text((x, y), text, font=f, fill=col)
             y += lh
         self._overflow = overflow
         return y
+
+    def _draw_volume(self, img, d, right, y, lh, vol, font, col) -> int:
+        """Speaker icon + percentage, right-aligned at ``right``; returns the width it takes (constant, so nothing jitters)."""
+        small = load_font(self.cfg.get("font"), max(9, round(font.size * 0.8)), self.ctx.base_dir)
+        s = max(10, round(lh * 0.62))                      # icon box
+        label = self._volume_label(vol)
+        text_w = max(d.textlength("100%", font=small), d.textlength(i18n.t("Mudo"), font=small))
+        gap = 5
+        total = int(s + gap + text_w)
+        x0, top = right - total, y + (lh - s) // 2
+        d.rectangle((x0, top + s * 0.34, x0 + s * 0.28, top + s * 0.66), fill=col)                       # speaker body
+        d.polygon([(x0 + s * 0.28, top + s * 0.34), (x0 + s * 0.62, top + s * 0.06), (x0 + s * 0.62, top + s * 0.94),
+                   (x0 + s * 0.28, top + s * 0.66)], fill=col)                                              # cone
+        w = max(1, s // 10)
+        if vol[1] or vol[0] == 0:                                                                          # muted: a cross
+            d.line((x0 + s * 0.72, top + s * 0.34, x0 + s * 1.0, top + s * 0.66), fill=col, width=w)
+            d.line((x0 + s * 0.72, top + s * 0.66, x0 + s * 1.0, top + s * 0.34), fill=col, width=w)
+        else:                                                                                              # sound waves grow with the level
+            for k, lim in enumerate((1, 34, 67)):
+                if vol[0] >= lim:
+                    r = s * (0.18 + 0.17 * k)
+                    cx, cy = x0 + s * 0.62, top + s / 2
+                    d.arc((cx - r, cy - r, cx + r, cy + r), -50, 50, fill=col, width=w)
+        d.text((right, y + lh / 2), label, font=small, fill=col, anchor="rm")
+        return total
 
     def _draw_scrolling(self, img, text, f, col, x0, width, y, lh, tw):
         """A line wider than its area runs past like on an old MP3 player: rests at the start, scrolls, loops."""

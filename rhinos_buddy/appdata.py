@@ -118,12 +118,7 @@ def load_prefs(home: Path) -> dict:
             "lang": raw.get("lang") if raw.get("lang") in ("pt", "en") else "pt",
             "lang_chosen": raw.get("lang_chosen") is True,
             "phone_enabled": raw.get("phone_enabled") is True,
-            "phone_token": _clean_token(raw.get("phone_token"))}
-
-
-def _clean_token(t) -> str:
-    """The phone-access secret: only a plausible URL-safe string is accepted back from the file."""
-    return t if isinstance(t, str) and 16 <= len(t) <= 64 and all(c.isalnum() or c in "-_" for c in t) else ""
+            "phone_edit": raw.get("phone_edit") is True}
 
 
 def save_prefs(home: Path, prefs: dict) -> dict:
@@ -131,7 +126,7 @@ def save_prefs(home: Path, prefs: dict) -> dict:
              "lang": prefs.get("lang") if prefs.get("lang") in ("pt", "en") else "pt",
              "lang_chosen": prefs.get("lang_chosen") is True,
              "phone_enabled": prefs.get("phone_enabled") is True,
-             "phone_token": _clean_token(prefs.get("phone_token"))}
+             "phone_edit": prefs.get("phone_edit") is True}
     f = Path(home) / PREFS_FILE
     tmp = f.with_suffix(".tmp")
     tmp.write_text(json.dumps(clean, ensure_ascii=False, indent=2), "utf-8")

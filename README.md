@@ -20,17 +20,21 @@ Without building the `.exe`, `Start Rhinos Buddy Supervisor.bat` starts the same
 - Security: the editor only listens on `127.0.0.1`, refuses other sites (Host / CSRF checks) and only accepts images.
 - **Quit** button at the top of the page (and **System → Quit program**): asks for confirmation, then closes the program and stops updating the screen.
 
-### Phone access (same Wi-Fi, view only)
+### Phone access (same Wi-Fi)
 
-- **System → Phone access** shows a QR code; scan it with the phone camera to see the same picture as the screen, full-size, in the phone's browser
-  (Android and iOS, nothing to install). Buttons: **Rotate** (fills a phone held upright) and **Fullscreen** (Android; iOS Safari has no page fullscreen).
-- It is **off by default**. When on, a "📱 Phone on" tag is shown at the top of the page.
-- Security: it is a separate, tiny server on port 8766 (editor port + 1), bound **only to the PC's private network address** (never every interface),
-  that serves just the viewer page and the current picture. The editor and its API stay on `127.0.0.1`. Every request needs the secret token that is inside the
-  QR code (128 bits, replaceable with **Generate new link**, which kills the old one at once); only private-network clients are served; the Host header is checked;
-  it is read-only; and repeated wrong tokens lock that address out for 5 minutes.
-- Limits: the connection is plain HTTP on your local network (not encrypted), so anyone on that network who gets the link can see the screen (including notifications, if any).
-  Guest/"isolated" Wi-Fi networks block phone-to-PC traffic. Windows asks about the firewall the first time. There is no access from outside your home network, by design.
+- **System → Phone access:** turn it on and scan the QR code with the phone camera. The phone opens the **same panel**, adapted to small screens, in its browser
+  (Android and iOS, nothing to install). With **Also allow editing the panel from the phone** off (default) you only get the picture of the screen; the **View screen**
+  / **Panel** buttons switch between the fullscreen picture (with Rotate and, on Android, Fullscreen) and the panel.
+- **Pairing:** the QR code is valid for **5 minutes** (a countdown is shown) and works **once**; a new one appears right away. Scanning it gives that phone a session that lasts
+  until the phone's browser is closed or you press **Disconnect** (the connected devices are listed on the PC). Turning phone access off, or closing the program, disconnects everyone.
+- **Editing in sync:** changes made on the phone appear on the PC and on the screen and vice versa. If both save at once, the first save wins and the other side is refreshed.
+  Not available from the phone: quitting, Windows start-up, restoring defaults and uploading images.
+- Security: off by default; a separate tiny server on port 8766 (editor port + 1), bound **only to the PC's private network address**; the editor and its full API stay on `127.0.0.1`.
+  Sessions are random 256-bit ids in a session cookie (HttpOnly, SameSite=Strict), kept in memory only; only private-network clients are served; the Host header is checked;
+  changing calls need the editor's custom header; repeated wrong codes lock that address out for 5 minutes.
+- Limits: the connection is plain HTTP on your local network (not encrypted), so someone on that network could in theory capture a session; whoever is connected sees the screen
+  (including notifications, if any) and, if editing is on, can change the panel. Guest/"isolated" Wi-Fi blocks phone-to-PC traffic. Windows asks about the firewall the first time.
+  There is no access from outside your home network, by design.
 
 ### Language
 
@@ -193,6 +197,6 @@ pip install pytest && python -m pytest tests
   [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md); the generated `.exe` ships with their full texts in `THIRD_PARTY_LICENSES.txt`.
 - **Trademarks:** "Turing Smart Screen", "UsbMonitor", "Spotify", "Windows", "NVIDIA" etc. belong to their owners and are mentioned only to
   identify compatible products. The project is not affiliated with any of them.
-- **Privacy:** everything runs on your computer. The editor only listens on `127.0.0.1` (the optional, off-by-default phone view listens on your private network address, see above); there is no telemetry, account or data upload. The only optional
+- **Privacy:** everything runs on your computer. The editor only listens on `127.0.0.1` (the optional, off-by-default phone access listens on your private network address, see above); there is no telemetry, account or data upload. The only optional
   network connection is reading the local LibreHardwareMonitor (`127.0.0.1:8085`) and the URL widgets you configure yourself.
 - **Publishing on GitHub and installing LibreHardwareMonitor:** see [`docs/GUIA_GIT_E_LICENCAS.md`](docs/GUIA_GIT_E_LICENCAS.md) (in Portuguese).

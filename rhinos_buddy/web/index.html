@@ -52,6 +52,26 @@ header select.langsel{width:auto;padding:4px 8px;font-size:12.5px;border-radius:
 #savestate{color:var(--muted);font-size:13px;min-width:90px;text-align:right}
 main{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:0;min-height:0}
 @media (max-width:1000px){main{grid-template-columns:1fr}}
+.remote #quitbtn,.remote #langsel,.remote #phonechip,.remote #ghlink{display:none!important}
+#viewlink{display:none;text-decoration:none;color:var(--text)}
+.remote #viewlink{display:inline-flex}
+@media (max-width:760px){
+  header{flex-wrap:wrap;gap:8px 10px;padding:10px 12px}
+  header .spacer{display:none}
+  .brand{font-size:14px;flex:1 1 100%}
+  #savestate{min-width:0;text-align:left}
+  #left{padding:12px}
+  #right{border-left:0;border-top:1px solid var(--line)}
+  .btn,select,input[type=text],input[type=number]{min-height:40px}
+  .btn.small{min-height:36px}
+  .tabs button{padding:12px 8px}
+  #stagetools{flex-wrap:wrap;gap:8px}
+  .modal .box{max-width:calc(100vw - 24px)}
+  html,body{height:auto}                       /* the whole page scrolls like any web page: preview first, panel below it */
+  main{display:block}
+  #left{overflow:visible}
+  #right{display:block;min-height:70vh}
+}
 #left{padding:18px 22px;display:flex;flex-direction:column;gap:14px;min-width:0;overflow:auto}
 #right{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
 /* pages */
@@ -166,6 +186,7 @@ code{background:var(--panel2);padding:1px 6px;border-radius:5px;font-size:12.5px
   <div class="spacer"></div>
   <select id="langsel" class="langsel" aria-label="Idioma / Language" data-ta="Idioma / Language"><option value="pt">Português</option><option value="en">English</option></select>
   <button id="themebtn" class="btn small" type="button" data-ta="Alternar modo claro e escuro" aria-label="Alternar modo claro e escuro"></button>
+  <a id="viewlink" class="btn small" href="/m" data-t="Ver tela">Ver tela</a>
   <span id="phonechip" class="pill" style="display:none;cursor:default" title=""><span id="phonechiptext"></span></span>
   <div id="pill" class="pill" title=""><span class="dot"></span><span id="pilltext">Conectando…</span></div>
   <button id="quitbtn" class="btn small quit" type="button" data-t="Encerrar">Encerrar</button>
@@ -227,9 +248,10 @@ function h(tag, props, ...kids) {
 async function api(path, opts = {}) {
   const r = await fetch(path, { ...opts, headers: { "X-Rhinos-Buddy": "1", ...(opts.headers || {}) } });
   let data = {}; try { data = await r.json(); } catch (_) {}
-  if (!r.ok) throw new Error(data.error || r.statusText);
+  if (!r.ok) { const err = new Error(data.error || r.statusText); err.status = r.status; err.data = data; throw err; }
   return data;
 }
+const REMOTE = !!window.RB_REMOTE;  // true when this page is the phone's copy (served by the phone server, edit mode)
 const post = (p, body) => api(p, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 let toastTimer;
@@ -257,10 +279,15 @@ async function doSave() {
   if (saving || dragging) { saveTimer = setTimeout(doSave, 150); return; }
   saving = true; dirty = false;
   try {
-    const r = await post("/api/layout", S.layout);
+    const r = await post("/api/layout?rev=" + S.rev, S.layout);
+    S.rev = r.rev;
     if (!dirty && JSON.stringify(r.layout) !== JSON.stringify(S.layout)) { S.layout = r.layout; clampSelection(); renderAll(); }
     setSave(dirty ? "Salvando…" : "Salvo ✓");
-  } catch (e) { toast(tf("Não foi possível salvar: {msg}", { msg: e.message }), true); setSave("Erro ao salvar"); }
+  } catch (e) {
+    if (e.status === 409 && e.data && e.data.layout) {  // another device (the PC or the phone) saved first: take its version
+      S.layout = e.data.layout; S.rev = e.data.rev; dirty = false; clampSelection(); renderAll(); toast(e.message, true); setSave("Atualizado");
+    } else { toast(tf("Não foi possível salvar: {msg}", { msg: e.message }), true); setSave("Erro ao salvar"); }
+  }
   finally { saving = false; }
 }
 function clampSelection() {
@@ -533,11 +560,14 @@ function fileField(label, get, set) {
     wrap.querySelectorAll(".dyn").forEach(x => x.remove());
     const cur = get(), box = h("div", { class: "dyn" });
     if (cur) box.append(h("img", { class: "thumb", src: "/api/media/" + encodeURIComponent(cur), alt: "" }));
+    if (REMOTE) {  // images are sent from the PC panel; here only the ones already there can be picked
+      if (cur) box.append(h("button", { class: "btn small", style: "margin-top:8px", onclick: () => { set(""); draw(); } }, "Remover"));
+    }
     const picker = h("input", { type: "file", accept: "image/png,image/jpeg,image/gif,image/webp,image/bmp", style: "display:none", onchange: async e => {
       const n = await uploadImage(e.target.files[0]); if (n) { set(n); draw(); }
     } });
     const old = S.media.filter(m => m !== cur);
-    box.append(h("div", { class: "inline", style: "margin-top:8px;flex-wrap:wrap" },
+    if (!REMOTE) box.append(h("div", { class: "inline", style: "margin-top:8px;flex-wrap:wrap" },
       h("button", { class: "btn small primary", onclick: () => picker.click() }, cur ? "Trocar imagem…" : "Escolher imagem…"),
       cur ? h("button", { class: "btn small", onclick: () => { set(""); draw(); } }, "Remover") : null, picker));
     if (old.length) {
@@ -701,16 +731,16 @@ function notifText() {
 }
 function panelTela() {
   const d = S.layout.device;
-  if (!S.ports) loadPorts();
+  if (!S.ports && !REMOTE) loadPorts();
   const ports = S.ports || [];
   const choices = [["auto", "Automático (recomendado)"]].concat(ports.map(p => [p.device, p.device + " — " + p.description + (p.is_screen ? tr("  ★ tela detectada") : "")]));
   if (!choices.some(c => c[0] === d.port)) choices.push([d.port, tf("{port} (não encontrada)", { port: d.port })]);
   return [
     statusCard(),
-    h("div", { class: "row", style: "margin-bottom:16px" },
+    REMOTE ? null : h("div", { class: "row", style: "margin-bottom:16px" },
       h("button", { class: "btn primary", onclick: async () => { await post("/api/reconnect", {}); toast("Reconectando…"); } }, "Reconectar"),
       h("button", { class: "btn", onclick: () => { S.ports = null; renderPanel(); } }, "Atualizar portas")),
-    h("div", { class: "group" }, h("h4", {}, "Conexão"),
+    REMOTE ? null : h("div", { class: "group" }, h("h4", {}, "Conexão"),
       selectField("Porta", choices, () => d.port, v => { d.port = v; commit(); })),
     h("div", { class: "group" }, h("h4", {}, "Imagem"),
       selectField("Rotação da tela", S.cat.rotations, () => d.orientation, v => changeOrientation(v)),
@@ -744,11 +774,21 @@ function panelTela() {
 async function loadPorts() { try { S.ports = await api("/api/ports"); if (S.tab === "tela") renderPanel(); } catch (_) { S.ports = []; } }
 
 
-// ------------------------------------------------------------------ phone access (same Wi-Fi, read-only)
+// ------------------------------------------------------------------ phone access (same Wi-Fi: pairing by QR code)
+let phoneTick = 0, phoneLeftAt = 0, phoneN = 0;
 function phoneBox() {
   const box = h("div", { id: "phonebox" });
   setTimeout(loadPhone, 0);
   fillPhone(box);
+  clearInterval(phoneTick);
+  phoneTick = setInterval(() => {  // the QR countdown; also notices a phone that just paired and the new QR that replaces the used one
+    const b = $("#phonebox"); if (!b || S.tab !== "sistema") { clearInterval(phoneTick); return; }
+    const p = S.phone; if (!p || !p.running) return;
+    const left = Math.max(0, Math.round((phoneLeftAt - Date.now()) / 1000));
+    const t = $("#phonetimer"); if (t) t.textContent = tf("O QR expira em {t}", { t: Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0") });
+    const bar = $("#phonebar"); if (bar) bar.style.width = Math.min(100, 100 * left / (p.pair_seconds || 300)) + "%";
+    if (left <= 0 || ++phoneN % 3 === 0) loadPhone();
+  }, 1000);
   return box;
 }
 async function loadPhone() { try { S.phone = await api("/api/phone"); } catch (_) { S.phone = null; } const b = $("#phonebox"); if (b) fillPhone(b); }
@@ -759,21 +799,33 @@ async function setPhone(body) {
 }
 function fillPhone(box) {
   const p = S.phone || { enabled: false, running: false };
+  if (p.running) phoneLeftAt = Date.now() + (p.seconds_left || 0) * 1000;
+  const sig = JSON.stringify([p.enabled, p.running, p.edit, p.error, p.url, (p.devices || []).map(d => d.id + d.idle)]);
+  if (box.dataset.sig === sig) return;  // nothing changed: leave the QR and the buttons alone (no flicker)
+  box.dataset.sig = sig;
   const kids = [
-    h("div", { class: "hint", style: "margin-bottom:8px" }, "Veja a tela do Buddy no celular, só para olhar (nada pode ser alterado por lá). O celular precisa estar no mesmo Wi-Fi. Fica desligado até você ligar."),
-    switchField("Permitir ver a tela pelo celular", () => p.enabled, v => setPhone({ enabled: v })),
+    h("div", { class: "hint", style: "margin-bottom:8px" }, "Veja a tela do Buddy no celular (e, se quiser, edite o painel por lá). O celular precisa estar no mesmo Wi-Fi. Fica desligado até você ligar."),
+    switchField("Permitir acesso pelo celular", () => p.enabled, v => setPhone({ enabled: v })),
+    switchField("Permitir também editar o painel pelo celular", () => p.edit, v => setPhone({ edit: v }), !p.enabled),
   ];
   if (p.error) kids.push(h("div", { class: "note warn" }, p.error));
   if (p.running && p.url) {
     kids.push(h("div", { class: "card", style: "padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px" },
       h("img", { alt: tr("QR code para abrir no celular"), style: "width:200px;height:200px;background:#fff;border-radius:8px;image-rendering:pixelated",
                  src: "data:image/svg+xml;utf8," + encodeURIComponent(p.svg) }),
-      h("div", { class: "hint", style: "text-align:center" }, "Aponte a câmera do celular para o QR code."),
-      h("code", { style: "word-break:break-all;font-size:11px;text-align:center" }, p.url),
+      h("div", { id: "phonetimer", style: "font-weight:600;font-variant-numeric:tabular-nums" }, ""),
+      h("div", { style: "width:200px;height:4px;border-radius:2px;background:var(--line)" }, h("div", { id: "phonebar", style: "height:100%;border-radius:2px;background:var(--accent);transition:width 1s linear;width:100%" })),
+      h("div", { class: "hint", style: "text-align:center" }, "Aponte a câmera do celular para o QR code. Ele vale por 5 minutos e só funciona uma vez; depois aparece um novo. Quem conectou continua conectado até fechar o navegador ou você desconectar."),
       h("div", { class: "row" },
-        h("button", { class: "btn small", onclick: async () => { try { await navigator.clipboard.writeText(p.url); toast("Link copiado."); } catch (_) { toast("Não deu para copiar; selecione o link acima.", true); } } }, "Copiar link"),
-        h("button", { class: "btn small", onclick: () => { if (confirm(tr("Gerar um novo link? O QR code e o link atuais deixam de funcionar."))) setPhone({ rotate: true }); } }, "Gerar novo link"))));
-    kids.push(h("div", { class: "note warn" }, "Qualquer pessoa na sua rede com este link vê a tela (inclusive notificações, se houver). Não compartilhe o link e desligue quando não precisar. A conexão não é criptografada (HTTP em rede local)."));
+        h("button", { class: "btn small", onclick: () => setPhone({ renew: true }) }, "Gerar novo QR"))));
+    const devs = p.devices || [];
+    kids.push(h("div", { class: "group" }, h("h4", {}, tf("Aparelhos conectados ({n})", { n: devs.length })),
+      devs.length ? devs.map(d => h("div", { class: "row", style: "justify-content:space-between;align-items:center;margin-bottom:6px" },
+        h("span", {}, d.device + " · " + d.ip, h("span", { class: "hint" }, " · " + tf("conectado há {m} min", { m: Math.max(0, Math.floor(d.since / 60)) }))),
+        h("button", { class: "btn small", onclick: () => setPhone({ disconnect: d.id }) }, "Desconectar")))
+        : h("div", { class: "hint" }, "Nenhum aparelho conectado."),
+      devs.length > 1 ? h("button", { class: "btn small", onclick: () => setPhone({ disconnect_all: true }) }, "Desconectar todos") : null));
+    kids.push(h("div", { class: "note warn" }, tr("Quem conectar vê a tela (inclusive notificações, se houver)") + (p.edit ? tr(" e pode editar o painel") : "") + tr(". Desligue quando não precisar: isso desconecta todos. A conexão não é criptografada (HTTP em rede local).")));
   } else if (p.enabled && !p.error) {
     kids.push(h("div", { class: "hint" }, "Iniciando…"));
   }
@@ -789,7 +841,7 @@ function panelSistema() {
   const kv = h("div", { class: "kv", id: "sensorkv" }, h("span", {}, "Lendo sensores…"), h("span"));
   const src = h("div", { id: "sensorsrc" });
   setTimeout(refreshSensors, 0);
-  return [
+  const groups = [
     h("div", { class: "group" }, h("h4", {}, "Inicialização"),
       switchField("Iniciar com o Windows (em segundo plano)", () => a.enabled, async v => {
         try { const r = await post("/api/autostart", { enabled: v }); S.autostart = r; toast(v ? "O Rhino's Buddy Supervisor vai iniciar com o Windows." : "Início automático desativado."); }
@@ -816,6 +868,7 @@ function panelSistema() {
         h("button", { class: "btn danger", onclick: confirmQuit }, "Encerrar programa")),
       h("div", { class: "hint", style: "margin-top:12px" }, tf("Versão {v}", { v: S.version }) + (S.version_title ? " (" + S.version_title + ")" : "") + " · ", h("a", { href: "https://github.com/yungrhino", target: "_blank", rel: "noopener noreferrer" }, "GitHub: yungrhino"), tr(" · Seus dados ficam em "), h("code", {}, S.home))),
   ];
+  return REMOTE ? [groups[1]] : groups;  // the phone's copy has no start-up, language, quit or phone-access controls
 }
 async function refreshSensors() {
   const kv = $("#sensorkv"); if (!kv || S.tab !== "sistema") return;
@@ -939,10 +992,21 @@ function updateStatus() {
   const ni = $("#notifinfo"); if (ni) ni.textContent = notifText();
 }
 async function pollStatus() {
-  try { const st = await api("/api/status"); if (JSON.stringify(st) !== JSON.stringify(S.status)) { S.status = st; updateStatus(); } } catch (_) {
+  try {
+    const st = await api("/api/status");
+    if (JSON.stringify(st) !== JSON.stringify(S.status)) { S.status = st; updateStatus(); }
+    if (typeof st.rev === "number" && st.rev > S.rev && !dirty && !saving && !dragging) await adoptRemoteChange();
+  } catch (_) {
     $("#pill").className = "pill bad"; $("#pilltext").textContent = tr("Programa não responde");
   }
   setTimeout(pollStatus, 2000);
+}
+async function adoptRemoteChange() {  // the layout was saved from another editor (PC <-> phone): show it here too
+  try {
+    const st = await api("/api/state");
+    if (st.rev <= S.rev || dirty || saving || dragging) return;
+    S.layout = st.layout; S.rev = st.rev; S.media = st.media; clampSelection(); renderAll(); setSave("Atualizado");
+  } catch (_) {}
 }
 let liveBusy = false;
 function refreshLive() {
@@ -961,12 +1025,13 @@ async function init() {
   let st;
   try {
     st = await api("/api/state");
-    Object.assign(S, { layout: st.layout, cat: st.catalog, status: st.status, media: st.media, autostart: st.autostart, home: st.home, version: st.version, version_title: st.version_title, whatsnew: st.whatsnew });
+    Object.assign(S, { rev: st.rev || 0, layout: st.layout, cat: st.catalog, status: st.status, media: st.media, autostart: st.autostart, home: st.home, version: st.version, version_title: st.version_title, whatsnew: st.whatsnew });
     LANG = st.lang === "en" ? "en" : "pt"; I18N = st.i18n || {};
   } catch (e) { document.body.innerHTML = "<p style='padding:40px'>Não foi possível falar com o programa: " + e.message + "</p>"; return; }
   applyStatic(); renderAll(); updateStatus(); pollStatus(); setInterval(refreshLive, 600); refreshLive();
-  if (!st.lang_chosen) await showLanguageChooser();  // once: pick Portuguese or English, then the notes (in that language)
-  if (S.whatsnew && S.whatsnew.show) showWhatsNew(false);
+  if (REMOTE) document.body.classList.add("remote");
+  if (!REMOTE && !st.lang_chosen) await showLanguageChooser();  // once: pick Portuguese or English, then the notes (in that language)
+  if (!REMOTE && S.whatsnew && S.whatsnew.show) showWhatsNew(false);
 }
 init();
 </script>

@@ -15,26 +15,25 @@ html,body{margin:0;height:100%;background:#000;color:#8b95a7;font:15px system-ui
 #msg.err{color:#ff8787}
 #bar{position:fixed;top:calc(8px + env(safe-area-inset-top));right:10px;display:flex;gap:8px;opacity:.85;transition:opacity .4s}
 #bar.hide{opacity:0;pointer-events:none}
-#bar button{background:#ffffff1f;color:#e6e9ef;border:0;border-radius:8px;padding:9px 13px;font-size:14px}
+#bar button,#bar a{text-decoration:none;background:#ffffff1f;color:#e6e9ef;border:0;border-radius:8px;padding:9px 13px;font-size:14px}
 </style>
 </head>
 <body>
 <div id="stage"><img id="frame" alt=""></div>
-<div id="bar"><button id="rot" type="button"></button><button id="fs" type="button"></button></div>
+<div id="bar"><a id="panel" href="/"></a><button id="rot" type="button"></button><button id="fs" type="button"></button></div>
 <div id="msg"></div>
 <script>
 (function () {
   "use strict";
   var pt = (navigator.language || "").toLowerCase().indexOf("pt") === 0;
-  var T = pt ? { rot: "Girar", fs: "Tela cheia", conn: "Conectando ao PC…", lost: "Sem conexão com o PC. Tentando de novo…",
-                 bad: "Link inválido ou trocado. Escaneie o QR code de novo no PC.", locked: "Muitas tentativas. Aguarde alguns minutos." }
-             : { rot: "Rotate", fs: "Fullscreen", conn: "Connecting to the PC…", lost: "Lost the connection to the PC. Retrying…",
-                 bad: "Invalid or replaced link. Scan the QR code on the PC again.", locked: "Too many attempts. Wait a few minutes." };
+  var T = pt ? { panel: "Painel", rot: "Girar", fs: "Tela cheia", conn: "Conectando ao PC…", lost: "Sem conexão com o PC. Tentando de novo…",
+                 bad: "Sessão encerrada. Escaneie o QR code de novo no PC.", locked: "Muitas tentativas. Aguarde alguns minutos." }
+             : { panel: "Panel", rot: "Rotate", fs: "Fullscreen", conn: "Connecting to the PC…", lost: "Lost the connection to the PC. Retrying…",
+                 bad: "Session ended. Scan the QR code on the PC again.", locked: "Too many attempts. Wait a few minutes." };
   var $ = function (id) { return document.getElementById(id); };
   var img = $("frame"), msg = $("msg"), bar = $("bar");
-  $("rot").textContent = T.rot; $("fs").textContent = T.fs;
-  var token = new URLSearchParams(location.search).get("t") || "";
-  var url = "";
+  $("rot").textContent = T.rot; $("fs").textContent = T.fs; $("panel").textContent = T.panel;
+    var url = "";
   var store = { get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
                 set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
   var rot = store.get("rot") === "1";
@@ -70,7 +69,7 @@ html,body{margin:0;height:100%;background:#000;color:#8b95a7;font:15px system-ui
   function tick() {
     if (busy || document.visibilityState !== "visible") return;
     busy = true;
-    fetch("/m/frame.jpg?t=" + encodeURIComponent(token) + "&_=" + Date.now(), { cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer" })
+    fetch("/m/frame.jpg?_=" + Date.now(), { cache: "no-store", credentials: "same-origin", referrerPolicy: "no-referrer" })
       .then(function (r) {
         if (r.status === 403) { stop(); say(T.bad, true); throw new Error("forbidden"); }
         if (r.status === 429) { stop(); say(T.locked, true); throw new Error("locked"); }
