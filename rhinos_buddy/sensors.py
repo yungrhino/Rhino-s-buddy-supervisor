@@ -110,7 +110,20 @@ def parse_lhm(tree: dict) -> dict:
         out["gpu_mem_used_gb"], out["gpu_mem_total_gb"] = used, total
         if total and not math.isnan(total) and not math.isnan(used):
             out["gpu_mem"] = 100 * used / total
-    return {k: v for k, v in out.items() if not math.isnan(v)}
+    disks = []  # storage devices: they have a temperature and a "Used Space" load, and are neither the CPU nor a GPU
+    for name, sensors in hardware.items():
+        if ("Load", "CPU Total") in sensors or "GPU Core" in {n for (_, n) in sensors}:
+            continue
+        temps = [parse_number(v) for (c, n), v in sensors.items() if c == "Temperatures"]
+        temps = [t for t in temps if not math.isnan(t)]
+        if temps and ("Load", "Used Space") in sensors:
+            main = parse_number(sensors.get(("Temperatures", "Temperature"), "-"))
+            disks.append({"name": name, "temp": main if not math.isnan(main) else max(temps),
+                          "used": parse_number(sensors[("Load", "Used Space")])})
+    res = {k: v for k, v in out.items() if not math.isnan(v)}
+    if disks:
+        res["disk_temps"] = disks
+    return res
 
 
 def fetch_lhm(url: str = "http://127.0.0.1:8085/data.json", timeout: float = 2.0) -> dict | None:

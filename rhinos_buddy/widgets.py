@@ -27,6 +27,7 @@ import numpy as np
 from PIL import Image, ImageColor, ImageDraw, ImageFont, ImageSequence
 
 from . import i18n
+from . import metrics as metrics_mod
 from .metrics import Metrics
 
 _FONT_CANDIDATES = (
@@ -981,6 +982,165 @@ class NowPlayingWidget(Widget):
         return img
 
 
+class DiskWidget(Widget):
+    """Storage card: how full a drive is, in whatever detail the user switched on.
+
+    ``view`` = ``cartao``: one drive (``drive``; empty = the drive Windows lives on) as a card with a title line, the
+    optional figures (used %, used / total GB, free, temperature, read / write speed) and a bar or ring.
+    ``view`` = ``lista``: every drive, one row each.  Everything but the title is optional."""
+
+    type_name = "disk"
+
+    def __init__(self, cfg, ctx):
+        super().__init__(cfg, ctx)
+        self._shown = None
+
+    def _metrics(self) -> dict:
+        m = self.ctx.metrics
+        return (m.get() if m is not None else {}) or {}
+
+    def _drives(self, data: dict) -> list[dict]:
+        ds = data.get("drives") or []
+        return ds if self.cfg.get("show_removable", False) else [d for d in ds if not d.get("removable")]
+
+    def _facts(self, data: dict):
+        """What the card shows right now, as plain values (also the change-detection key)."""
+        drives = self._drives(data)
+        if self.cfg.get("view") == "lista":
+            return ("lista", tuple((d["id"], round(d["percent"]), round(d["used_gb"], 1), round(d["total_gb"], 1), round(d["free_gb"], 1)) for d in drives))
+        d = metrics_mod.match_drive(drives, self.cfg.get("drive", ""))
+        if d is None:
+            return ("none", self.cfg.get("drive", ""))
+        temp = metrics_mod.pick_disk_temp(data.get("disk_temps"), d, self.cfg.get("disk_sensor", "")) if self.cfg.get("show_temp") else math.nan
+        rd, wr = (data.get("disk_read_kbs"), data.get("disk_write_kbs")) if self.cfg.get("show_rw") else (None, None)
+        return ("one", d["id"], round(d["percent"]), round(d["used_gb"], 1), round(d["total_gb"], 1), round(d["free_gb"], 1),
+                None if math.isnan(temp) else round(temp),
+                None if rd is None else metrics_mod.human_rate(rd), None if wr is None else metrics_mod.human_rate(wr))
+
+    def update(self) -> bool:
+        key = self._facts(self._metrics())
+        changed = key != self._shown
+        self._shown = key
+        return changed
+
+    # ---- drawing helpers
+    @staticmethod
+    def _gb(v: float) -> str:
+        return f"{v / 1024:.1f} TB" if v >= 1000 else f"{v:.0f} GB"
+
+    def _colors(self):
+        return (color(self.cfg.get("text", "white")), color(self.cfg.get("muted", "#8b95a7")), color(self.cfg.get("color", "#ffa94d")))
+
+    def _bar(self, d, x, y, w, frac, accent, h=7):
+        d.rounded_rectangle((x, y, x + w, y + h), h / 2, fill=color("#ffffff") + (46,))
+        if frac > 0:
+            d.rounded_rectangle((x, y, x + max(h, w * frac), y + h), h / 2, fill=accent + (255,))
+
+    def _ring(self, img, box, frac, accent, thick):
+        """A ring that fills clockwise from the top; drawn 4x larger and shrunk so the edges are smooth."""
+        x0, y0, x1, y1 = box
+        w, h = int(x1 - x0), int(y1 - y0)
+        k = 4
+        layer = Image.new("RGBA", (w * k, h * k), (0, 0, 0, 0))
+        ld = ImageDraw.Draw(layer)
+        rect = (thick * k / 2, thick * k / 2, w * k - thick * k / 2, h * k - thick * k / 2)
+        ld.arc(rect, 0, 360, fill=color("#ffffff") + (46,), width=int(thick * k))
+        if frac > 0:
+            ld.arc(rect, -90, -90 + 360 * min(frac, 0.9999), fill=accent + (255,), width=int(thick * k))
+        img.alpha_composite(layer.resize((w, h), Image.LANCZOS), (int(x0), int(y0)))
+
+    def render(self):
+        img, d = self.new_layer()
+        facts = self._shown if self._shown is not None else self._facts(self._metrics())
+        fg, muted, accent = self._colors()
+        size = int(self.cfg.get("size", 18))
+        bold = load_font(self.cfg.get("font_bold") or self.cfg.get("font"), size, self.ctx.base_dir)
+        reg = load_font(self.cfg.get("font"), max(9, round(size * 0.72)), self.ctx.base_dir)
+        if facts[0] == "none":
+            msg = i18n.t("Unidade não encontrada") if facts[1] else i18n.t("Nenhuma unidade")
+            d.text((self.w / 2, self.h / 2), _ellipsize(d, msg, reg, self.w), font=reg, fill=muted, anchor="mm")
+            return img
+        if facts[0] == "lista":
+            return self._render_list(img, d, facts, bold, reg, fg, muted, accent)
+        return self._render_one(img, d, facts, bold, reg, fg, muted, accent)
+
+    def _render_list(self, img, d, facts, bold, reg, fg, muted, accent):
+        rows = facts[1]
+        if not rows:
+            d.text((self.w / 2, self.h / 2), i18n.t("Nenhuma unidade"), font=reg, fill=muted, anchor="mm")
+            return img
+        row_h = max(round(bold.size * 1.25) + (12 if self.cfg.get("show_bar", True) else 2), 20)
+        fit = max(1, self.h // row_h)
+        y = (self.h - min(len(rows), fit) * row_h) // 2 if len(rows) <= fit else 0
+        for ident, pct, used, total, free in rows[:fit]:
+            label = self.cfg.get("label") if len(rows) == 1 and self.cfg.get("label") else ident
+            d.text((0, y), _ellipsize(d, label, bold, self.w * 0.3), font=bold, fill=fg)
+            parts = []
+            if self.cfg.get("show_used", True):
+                parts.append(f"{self._gb(used)} / {self._gb(total)}")
+            if self.cfg.get("show_free", False):
+                parts.append(f"{self._gb(free)} {i18n.t('livres')}")
+            if self.cfg.get("show_percent", True):
+                parts.append(f"{pct}%")
+            right = "  ·  ".join(parts)
+            d.text((self.w, y + bold.size * 0.65), _ellipsize(d, right, reg, self.w * 0.7), font=reg, fill=muted, anchor="rm")
+            if self.cfg.get("show_bar", True):
+                self._bar(d, 0, y + round(bold.size * 1.25) + 2, self.w, pct / 100, accent, 6)
+            y += row_h
+        return img
+
+    def _render_one(self, img, d, facts, bold, reg, fg, muted, accent):
+        _, ident, pct, used, total, free, temp, rd, wr = facts
+        label = self.cfg.get("label") or ident
+        W, H = self.w, self.h
+        ring = bool(self.cfg.get("radial", False)) and self.cfg.get("show_bar", True)
+        head_h = round(bold.size * 1.3)
+        d.text((0, 0), _ellipsize(d, label, bold, W * 0.6), font=bold, fill=fg)
+        if self.cfg.get("show_used", True) and not ring and W >= 150:
+            d.text((W, bold.size * 0.65), self._gb(total), font=reg, fill=muted, anchor="rm")
+        cells = []  # (caption, value)
+        if self.cfg.get("show_percent", True):
+            cells.append((i18n.t("Usado"), f"{pct}%"))
+        if self.cfg.get("show_used", True):
+            cells.append((i18n.t("Em uso"), f"{self._gb(used)} / {self._gb(total)}" if W >= 150 else self._gb(used)))
+        if self.cfg.get("show_free", False):
+            cells.append((i18n.t("Livre"), self._gb(free)))
+        if temp is not None:
+            cells.append((i18n.t("Temp"), f"{temp} °C"))
+        if rd is not None:
+            cells.append((i18n.t("Leitura"), rd))
+        if wr is not None:
+            cells.append((i18n.t("Escrita"), wr))
+        bar_on = self.cfg.get("show_bar", True) and not ring
+        bar_h = 7 + 8 if bar_on else 0
+        # ring on the left (a square), the figures on the right of it; otherwise the figures use the whole width
+        left = 0
+        if ring:
+            s = int(min(H - head_h, W * 0.48))
+            if s >= 36:
+                self._ring(img, (0, head_h + (H - head_h - s) // 2, s, head_h + (H - head_h - s) // 2 + s), pct / 100, accent, max(5, s // 9))
+                d.text((s / 2, head_h + (H - head_h) / 2), f"{pct}%", font=reg, fill=fg, anchor="mm")
+                left = s + 12
+                cells = [c for c in cells if c[0] != i18n.t("Usado")]
+        area_w, area_h = W - left, H - head_h - bar_h
+        cols = 2 if area_w >= 170 and len(cells) > 1 else 1
+        rows = max(1, math.ceil(len(cells) / cols))
+        cell_h = round(bold.size * 1.0 + reg.size * 1.25)
+        cell_w = area_w / cols
+        usable = max(1, area_h // cell_h)
+        if rows > usable:                      # not enough height: show as many as fit, in the order above
+            cells = cells[: usable * cols]
+            rows = usable
+        top = head_h + max(0, (area_h - rows * cell_h) // 2)
+        for i, (cap, val) in enumerate(cells):
+            cx, cy = left + (i % cols) * cell_w, top + (i // cols) * cell_h
+            d.text((cx, cy), _ellipsize(d, cap, reg, cell_w - 6), font=reg, fill=muted)
+            d.text((cx, cy + reg.size * 1.15), _ellipsize(d, val, bold, cell_w - 6), font=bold, fill=fg)
+        if bar_on:
+            self._bar(d, 0, H - 9, W, pct / 100, accent)
+        return img
+
+
 class NoticeWidget(Widget):
     """Notifications.
 
@@ -1129,7 +1289,7 @@ class RectWidget(Widget):
 REGISTRY = {
     c.type_name: c
     for c in (
-        TextWidget, ClockWidget, BarWidget, RadialWidget, VisualizerWidget, NowPlayingWidget, NoticeWidget, GraphWidget, ImageWidget, WebImageWidget,
+        TextWidget, ClockWidget, BarWidget, RadialWidget, VisualizerWidget, NowPlayingWidget, NoticeWidget, DiskWidget, GraphWidget, ImageWidget, WebImageWidget,
         CommandWidget, FileTextWidget, HttpJsonWidget, PluginWidget, RectWidget,
     )
 }

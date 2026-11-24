@@ -25,6 +25,8 @@ Without building the `.exe`, `Start Rhinos Buddy Supervisor.bat` starts the same
 - **System → Phone access:** turn it on and scan the QR code with the phone camera. The phone opens the **same panel**, adapted to small screens, in its browser
   (Android and iOS, nothing to install). With **Also allow editing the panel from the phone** off (default) you only get the picture of the screen; the **View screen**
   / **Panel** buttons switch between the fullscreen picture (with Rotate and, on Android, Fullscreen) and the panel.
+- **No QR reader?** Under the QR code the panel shows a short **8-character code** (e.g. `ABCD-2345`), the address to type it into and the full link with a **Copy link** button. Same rules as the QR: 5 minutes, single use, locked out after repeated wrong tries.
+- **Screen view:** the picture turns automatically to the side where it is biggest (**Rotate: auto / off / on**), so portrait and landscape layouts both fill the phone; **Fullscreen** where the browser allows it (not iPhone Safari).
 - **Pairing:** the QR code is valid for **5 minutes** (a countdown is shown) and works **once**; a new one appears right away. Scanning it gives that phone a session that lasts
   until the phone's browser is closed or you press **Disconnect** (the connected devices are listed on the PC). Turning phone access off, or closing the program, disconnects everyone.
 - **Editing in sync:** changes made on the phone appear on the PC and on the screen and vice versa. If both save at once, the first save wins and the other side is refreshed.
@@ -63,6 +65,10 @@ Without building the `.exe`, `Start Rhinos Buddy Supervisor.bat` starts the same
   The visualizer follows the default Windows output device: when you connect Bluetooth headphones or switch speakers, the capture follows in about 1 second.
   Capture only runs while a visualizer is visible on the screen. Because of the slow USB link, the program limits the redraw
   rate by the size of the area: small slots (e.g. 2x1 cells) are smoother than large ones.
+- **Storage card** (group "Memory and disk"): usage of your drives as one card (pick the drive, e.g. `C`) or as a list of all of them. Every figure is optional:
+  used %, used / total GB, free space, temperature, read / write speed, bar or ring, and whether USB sticks are listed. Temperatures need LibreHardwareMonitor
+  (storage sensors are matched to the drive by "Used Space", or type part of the disk's name in the card's options).
+- **What's new history:** *System → What's new* opens the notes of any earlier version.
 - **Notifications (WhatsApp Web, Discord, etc.):** off by default, because the text of an alert can be private.
   Turn it on in **Screen → Show Windows notifications on the screen**. Every card has **Show notification alerts on this card** (in its options): when an
   alert arrives, the card gives way to a panel with the app, title and message for a few seconds and then returns by itself to what it was

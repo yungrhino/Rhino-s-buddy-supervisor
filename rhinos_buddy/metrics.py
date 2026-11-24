@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 import os
+import sys
 import time
 from collections import defaultdict
 
@@ -18,6 +19,76 @@ from . import sensors
 
 NAN = float("nan")
 OPTIONAL = ("cpu_temp", "gpu", "gpu_temp", "gpu_mem", "gpu_mem_used_gb", "gpu_mem_total_gb")
+
+
+DRIVES_EVERY = 5.0  # seconds between looks at the drives (space changes slowly; listing them is not free)
+
+
+def list_drives() -> list[dict]:
+    """Every mounted drive with its space: ``{id, mount, total_gb, used_gb, free_gb, percent, removable}``.
+
+    Optical drives and unreadable ones are left out.  ``id`` is what a person calls it ("C:" on Windows, the mount point elsewhere)."""
+    out, seen = [], set()
+    try:
+        parts = psutil.disk_partitions(all=False)
+    except Exception:
+        return out
+    for p in parts:
+        opts = (p.opts or "").lower()
+        if "cdrom" in opts or not p.fstype or p.mountpoint in seen:
+            continue
+        try:
+            u = psutil.disk_usage(p.mountpoint)
+        except Exception:  # an empty card reader, a disconnected network drive...
+            continue
+        if not u.total:
+            continue
+        seen.add(p.mountpoint)
+        mount = p.mountpoint
+        ident = mount[:2] if sys.platform == "win32" and len(mount) >= 2 and mount[1] == ":" else mount
+        out.append({"id": ident, "mount": mount, "total_gb": u.total / 2**30, "used_gb": u.used / 2**30,
+                    "free_gb": u.free / 2**30, "percent": float(u.percent), "removable": "removable" in opts})
+    return out
+
+
+def system_drive_id() -> str:
+    root = os.environ.get("SystemDrive") if sys.platform == "win32" else None
+    return (root or os.path.abspath(os.sep)).rstrip("\\/") or "/"
+
+
+def match_drive(drives: list[dict], wanted: str = "") -> dict | None:
+    """The drive a person asked for ("C", "c:", "D:\\", "/home"...); empty or "auto" = the drive Windows lives on."""
+    w = (wanted or "").strip()
+    if not drives:
+        return None
+    if not w or w.lower() in ("auto", "automatico", "automático"):
+        sysid = system_drive_id().lower()
+        return next((d for d in drives if d["id"].lower().rstrip("\\/") == sysid or d["mount"].lower().rstrip("\\/") == sysid), drives[0])
+    key = w.lower().rstrip("\\/")
+    if len(key) == 1 and key.isalpha():
+        key += ":"
+    return next((d for d in drives if d["id"].lower().rstrip("\\/") == key or d["mount"].lower().rstrip("\\/") == key), None)
+
+
+def pick_disk_temp(temps: list[dict], drive: dict | None, hint: str = "") -> float:
+    """Temperature of the physical disk behind ``drive`` from LibreHardwareMonitor's storage sensors.
+
+    LibreHardwareMonitor knows disks by model name, not by drive letter, so: the name the user typed wins; with a single
+    disk it is that one; otherwise the disk whose "Used Space" is closest to the drive's own percentage (within 3 points)."""
+    temps = [t for t in (temps or []) if isinstance(t, dict) and isinstance(t.get("temp"), (int, float)) and not math.isnan(t["temp"])]
+    if not temps:
+        return NAN
+    h = (hint or "").strip().lower()
+    if h:
+        hit = next((t for t in temps if h in str(t.get("name", "")).lower()), None)
+        return float(hit["temp"]) if hit else NAN
+    if len(temps) == 1:
+        return float(temps[0]["temp"])
+    if drive:
+        close = sorted((abs(t["used"] - drive["percent"]), t) for t in temps if isinstance(t.get("used"), (int, float)) and not math.isnan(t["used"]))
+        if close and close[0][0] <= 3.0 and (len(close) == 1 or close[1][0] - close[0][0] > 0.5):
+            return float(close[0][1]["temp"])
+    return NAN
 
 
 def human_rate(kb_per_s: float) -> str:
@@ -50,6 +121,12 @@ class Metrics:
         self._data: dict = {}
         self._net = psutil.net_io_counters()
         self._net_t = time.monotonic()
+        try:
+            self._io = psutil.disk_io_counters()
+        except Exception:  # some systems have no disk counters
+            self._io = None
+        self._drives: list[dict] = []
+        self._drives_t = -1e9
         self.history: dict[str, list[float]] = defaultdict(list)
         self.stability = 1
         self._shown: dict = {}
@@ -131,6 +208,17 @@ class Metrics:
         d["net_down_h"] = human_rate(d["net_down_kbs"])
         d["net_up_h"] = human_rate(d["net_up_kbs"])
         self._net, self._net_t = net, now
+        if now - self._drives_t >= DRIVES_EVERY:
+            self._drives, self._drives_t = list_drives(), now
+        d["drives"] = self._drives
+        try:  # whole-computer disk activity (Windows does not map the counters to drive letters)
+            io = psutil.disk_io_counters()
+            if io is not None and self._io is not None:
+                d["disk_read_kbs"] = max(0.0, (io.read_bytes - self._io.read_bytes) / 1024 / dt)
+                d["disk_write_kbs"] = max(0.0, (io.write_bytes - self._io.write_bytes) / 1024 / dt)
+            self._io = io
+        except Exception:
+            pass
         d["cpu_temp"] = self._psutil_cpu_temp()
         try:
             b = psutil.sensors_battery()
@@ -144,6 +232,7 @@ class Metrics:
             for k, v in dict(p.data).items():
                 if not (isinstance(v, float) and math.isnan(v)):
                     d[k] = v
+        d.setdefault("disk_temps", [])
         self._t = now
         self._publish(d)
         for k, v in d.items():

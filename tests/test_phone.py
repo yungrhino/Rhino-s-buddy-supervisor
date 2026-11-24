@@ -83,9 +83,13 @@ def test_lockout_after_repeated_wrong_tokens():
     assert not lk._fails.get("192.168.1.9")                               # a right token clears the count
 
 
-def test_pairing_codes_are_long_and_random():
-    a, b = phone.new_secret(), phone.new_secret()
-    assert a != b and len(a) >= 22
+def test_pairing_codes_are_short_random_and_easy_to_type():
+    codes = {phone.new_secret() for _ in range(200)}
+    assert len(codes) == 200                                              # no repeats in a sample
+    assert all(len(c) == phone.CODE_LENGTH == 8 and set(c) <= set(phone.CODE_ALPHABET) for c in codes)
+    assert not set("0O1I") & set(phone.CODE_ALPHABET)                     # nothing easy to mix up
+    assert phone.normalize_code(" ab-cd 2345 ") == "ABCD2345"
+    assert phone.pretty_code("ABCD2345") == "ABCD-2345"
 
 
 # ---------------------------------------------------------------- the LAN server
@@ -156,7 +160,7 @@ def test_nothing_works_without_pairing(env):
         status, body, _ = req(acc, path)
         assert status == 403, path
     assert b"QR" in req(acc, "/m")[1]
-    assert req(acc, "/p")[0] == 403 and req(acc, "/p?c=wrong")[0] == 403
+    assert req(acc, "/p?c=wrong")[0] == 403
 
 
 def test_scanning_the_qr_code_starts_a_session_cookie(env):
@@ -439,3 +443,43 @@ def server(tmp_path):
     srv.shutdown()
     srv.server_close()
     runner.stop()
+
+
+def test_typed_code_works_like_the_qr_and_is_single_use(env):
+    _, acc = env
+    status, body, _ = req(acc, "/p")
+    assert status == 200 and b'name="c"' in body                          # the typing page, not an error
+    assert acc.lockout._fails == {}                                        # opening it is not a failed attempt
+    code, _ = acc.pair_code()
+    typed = code[:4].lower() + " - " + code[4:].lower()                    # sloppy typing is fine
+    status, _, hdr = req(acc, "/p?c=" + typed.replace(" ", "%20"))
+    assert status == 303 and "rb_s=" in hdr.get("set-cookie", "")
+    assert req(acc, "/p?c=" + code)[0] == 403                              # used once: dead
+
+
+def test_wrong_typed_codes_lock_the_address_out(env):
+    _, acc = env
+    for _ in range(phone.MAX_FAILS):
+        assert req(acc, "/p?c=ZZZZZZZZ")[0] == 403
+    assert req(acc, "/p")[0] == 429                                        # even the typing page waits
+    assert req(acc, "/p?c=" + acc.pair_code()[0])[0] == 429                # and the right code too
+
+
+def test_status_exposes_code_and_manual_address(env):
+    _, acc = env
+    st = acc.status()
+    assert st["code"] == phone.pretty_code(acc.pair_code()[0]) and st["manual_url"].endswith("/p")
+    assert st["url"].endswith("/p?c=" + acc.pair_code()[0])
+    assert len(st["url"]) < 60                                             # short link = a small, easy QR
+
+
+def test_a_busy_port_is_reported_not_shared(tmp_path):
+    """Two servers must never share a port (on Windows SO_REUSEADDR would allow it)."""
+    port = free_port()
+    a = phone.PhoneAccess(tmp_path / "a", lambda: b"", page=b"x", main_port=port, bind_ip="127.0.0.1")
+    b = phone.PhoneAccess(tmp_path / "b", lambda: b"", page=b"x", main_port=port, bind_ip="127.0.0.1")
+    try:
+        assert a.start() is True
+        assert b.start() is False and "porta" in b.error
+    finally:
+        a.stop(); b.stop()

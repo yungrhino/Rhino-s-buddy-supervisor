@@ -138,6 +138,22 @@ MODULES: dict[str, dict] = {
                 options=_stat_opts("RAM")),
     "disk": dict(label="Disco (uso)", group="Memória e disco", size=(4, 2), color="#ffa94d",
                  options=_stat_opts("Disco")),
+    "armazenamento": dict(label="Armazenamento (unidades de disco)", group="Memória e disco", size=(4, 3), color="#ffa94d", options=[
+        O("view", "Mostrar", "choice", "cartao", [("cartao", "Uma unidade (cartão)"), ("lista", "Todas as unidades (lista)")]),
+        O("drive", "Unidade (ex.: C: ou D:; vazio = a do Windows)", "text", ""),
+        O("label", "Título (vazio = nome da unidade)", "text", ""),
+        O("show_percent", "Mostrar % usado", "bool", True),
+        O("show_used", "Mostrar usado / total (GB)", "bool", True),
+        O("show_free", "Mostrar espaço livre", "bool", False),
+        O("show_temp", "Mostrar temperatura do disco (precisa do LibreHardwareMonitor)", "bool", False),
+        O("disk_sensor", "Nome do disco no LibreHardwareMonitor (opcional, ajuda a achar a temperatura certa)", "text", ""),
+        O("show_rw", "Mostrar velocidade de leitura e gravação", "bool", False),
+        O("show_bar", "Mostrar barra / anel de uso", "bool", True),
+        O("bar_style", "Estilo do indicador", "choice", "tema",
+          [("tema", "Seguir o tema"), ("barra", "Barra horizontal"), ("radial", "Anel (círculo)")]),
+        O("show_removable", "Incluir pendrives e unidades removíveis", "bool", False),
+        O("color", "Cor (vazio = padrão)", "color", ""),
+    ]),
     "net": dict(label="Rede (download + upload)", group="Rede", size=(12, 2), color="#4dabf7", options=[
         O("show_graph", "Mostrar gráfico", "bool", False),
         O("align", "Posição do texto", "choice", "padrao",
@@ -677,6 +693,14 @@ def _build_module(c: _Ctx, module: str, o: dict, x, y, w, h) -> list[dict]:
         return [{"type": "notice", "mode": "list", "x": int(x), "y": int(y), "w": max(1, int(w)), "h": max(1, int(h)),
                  "rows": o["rows"], "idle_text": o["idle_text"], "align": o["align"], "size": max(12, min(18, int(h / 4.2))), "font": c.font,
                  "font_bold": c.bold, "color": th["text"], "muted": th["muted"], "accent": th["accent"], "interval": 1}]
+    if module == "armazenamento":  # drives: one card or a list, every figure optional
+        style = o["bar_style"]
+        return [{"type": "disk", "x": int(x), "y": int(y), "w": max(1, int(w)), "h": max(1, int(h)), "view": o["view"], "drive": o["drive"],
+                 "label": o["label"], "show_percent": o["show_percent"], "show_used": o["show_used"], "show_free": o["show_free"],
+                 "show_temp": o["show_temp"], "disk_sensor": o["disk_sensor"], "show_rw": o["show_rw"], "show_bar": o["show_bar"],
+                 "show_removable": o["show_removable"], "radial": (th["bar_style"] if style == "tema" else style) == "radial",
+                 "size": max(12, min(24, int(h / 5.2))), "font": c.font, "font_bold": c.bold, "text": th["text"], "muted": th["muted"],
+                 "color": _module_color(c, module, o), "interval": 2}]
     if module == "visualizador":  # just the spectrum, as a card of its own
         return [_viz_widget(c, o, x, y, w, h, _module_color(c, module, o))]
     if module == "musica":

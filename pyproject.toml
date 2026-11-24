@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rhinos_buddy"
-version = "1.6.0"
+version = "1.7.0"
 description = "Open source driver and widget engine for 3.5-inch USB secondary screens"
 readme = "README.md"
 requires-python = ">=3.11"

@@ -147,7 +147,8 @@ class App:
     def whatsnew(self) -> dict:
         prefs = appdata.load_prefs(self.home)
         notes = release_notes.notes_for(__version__, i18n.lang())
-        return {"show": release_notes.should_show(__version__, prefs), "hide": prefs["hide_notes"], "notes": notes}
+        return {"show": release_notes.should_show(__version__, prefs), "hide": prefs["hide_notes"], "notes": notes,
+                "history": release_notes.history(i18n.lang())}
 
     def ports(self) -> list[dict]:
         try:

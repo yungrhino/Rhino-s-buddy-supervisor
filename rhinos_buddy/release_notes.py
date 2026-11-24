@@ -7,6 +7,23 @@ Add an entry here with every version: a version without notes simply shows no po
 from __future__ import annotations
 
 NOTES: dict[str, dict] = {
+    "1.7.0": {
+        "title": "Storage card and easier pairing",
+        "items": [
+            "Novo card “Armazenamento”: mostra o uso das unidades de disco (percentual, usado/total, livre, temperatura, leitura e escrita), como cartão de uma unidade ou como lista de todas. Tudo é opcional: você escolhe a unidade, o que aparece e o estilo (barra ou anel).",
+            "Celular sem leitor de QR? Abaixo do QR agora há o código curto (8 caracteres), o endereço para digitar e o link completo com o botão “Copiar link”. O código vale 5 minutos, só funciona uma vez e tem o mesmo bloqueio contra tentativas. O QR ficou menor e mais fácil de ler.",
+            "Visão da tela no celular: a imagem gira sozinha para o lado em que aparece maior (respeitando retrato ou paisagem do seu layout), com o botão “Giro” para escolher auto, não ou sim. Em tela cheia no Android a orientação é travada no formato da imagem.",
+            "Novo histórico de novidades: em Sistema → Novidades dá para abrir as novidades de qualquer versão anterior.",
+            "Correção para o Windows: o servidor do celular não divide mais a porta com outro programa, e os testes automáticos do GitHub passam a mostrar mais detalhes quando algo falha.",
+        ],
+        "items_en": [
+            "New “Storage” card: shows disk drive usage (percent, used/total, free, temperature, read and write speed), as a card for one drive or as a list of all of them. Everything is optional: you choose the drive, what is shown and the style (bar or ring).",
+            "Phone without a QR reader? Under the QR there is now the short code (8 characters), the address to type and the full link with a “Copy link” button. The code lasts 5 minutes, works only once and has the same lock-out against guessing. The QR is smaller and easier to scan.",
+            "Phone screen view: the picture turns by itself to the side where it appears biggest (respecting your layout's portrait or landscape), with a “Rotate” button to pick auto, off or on. In fullscreen on Android the orientation is locked to the picture's shape.",
+            "New what's-new history: in System → What's new you can open the notes of any earlier version.",
+            "Windows fix: the phone server no longer shares its port with another program, and the automatic GitHub tests now show more detail when something fails.",
+        ],
+    },
     "1.6.0": {
         "title": "Phone panel and volume",
         "items": [
@@ -101,7 +118,7 @@ NOTES: dict[str, dict] = {
         ],
     },
     "1.1.0": {
-        "title": "modo claro e cards em teste",
+        "title": "Light mode and test cards",
         "items": [
             "Modo claro e modo escuro: o botão fica no topo da página.",
             "Nova categoria “Em teste” (expansível) na lista de módulos, com o card de Notificações dentro.",
@@ -110,6 +127,28 @@ NOTES: dict[str, dict] = {
             "Trocar entre paisagem e retrato não bagunça mais os cards: cada orientação guarda o seu próprio arranjo.",
             "Esta janela de novidades aparece só uma vez por versão e pode ser desligada.",
             "O zip inclui um desinstalador e as notas da versão.",
+        ],
+        "items_en": [
+            "Light and dark mode: the button is at the top of the page.",
+            "New “In testing” category (expandable) in the module list, with the Notifications card inside.",
+            "The Notifications card gained text alignment (left, center or right).",
+            "Preview: click outside a card to deselect it; you can now resize by dragging any corner.",
+            "Switching between landscape and portrait no longer scrambles the cards: each orientation keeps its own arrangement.",
+            "This what's-new window shows only once per version and can be turned off.",
+            "The zip includes an uninstaller and the version notes.",
+        ],
+    },
+    "1.0.10": {
+        "title": "Accurate song time",
+        "items": [
+            "Versões 1.0.x (resumo): contador de tempo da música preciso, sem pular nem repetir segundos.",
+            "Notificações aparecem sobre qualquer card, com card próprio de Notificações; a lista mostra o que está na central do Windows e o filtro olha título e texto.",
+            "Visualizador de áudio que acompanha o dispositivo de saída; data sem cortes (o texto encolhe em vez de cortar).",
+        ],
+        "items_en": [
+            "1.0.x versions (summary): accurate song time counter, with no skipped or repeated seconds.",
+            "Notifications appear over any card, with a dedicated Notifications card; the list shows what is in the Windows notification center and the filter checks title and text.",
+            "Audio visualizer that follows the output device; the date no longer gets cut off (the text shrinks instead).",
         ],
     },
 }
@@ -122,6 +161,14 @@ def notes_for(version: str, lang: str = "pt") -> dict | None:
         return None
     items = n.get("items_en") if lang == "en" and n.get("items_en") else n["items"]
     return {"version": version, "title": n["title"], "items": list(items)}
+
+
+def history(lang: str = "pt") -> list[dict]:
+    """Every version that has notes, newest first (for the "see past what's-new" list)."""
+    def key(v: str):
+        return tuple(int(x) for x in v.split(".") if x.isdigit())
+
+    return [notes_for(v, lang) for v in sorted(NOTES, key=key, reverse=True)]
 
 
 def should_show(version: str, prefs: dict) -> bool:

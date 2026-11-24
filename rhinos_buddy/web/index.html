@@ -815,6 +815,19 @@ function fillPhone(box) {
                  src: "data:image/svg+xml;utf8," + encodeURIComponent(p.svg) }),
       h("div", { id: "phonetimer", style: "font-weight:600;font-variant-numeric:tabular-nums" }, ""),
       h("div", { style: "width:200px;height:4px;border-radius:2px;background:var(--line)" }, h("div", { id: "phonebar", style: "height:100%;border-radius:2px;background:var(--accent);transition:width 1s linear;width:100%" })),
+      h("div", { class: "hint", style: "text-align:center" }, "Sem câmera ou sem leitor de QR? No celular, abra o endereço abaixo e digite o código (ou use o link completo)."),
+      h("div", { style: "text-align:center" },
+        h("div", { class: "hint" }, "Código"),
+        h("div", { id: "phonecode", style: "font:700 26px ui-monospace,Consolas,monospace;letter-spacing:.14em;user-select:all" }, p.code || "")),
+      h("div", { style: "text-align:center;max-width:100%" },
+        h("div", { class: "hint" }, "Endereço para digitar o código"),
+        h("code", { style: "user-select:all;word-break:break-all" }, (p.manual_url || "").replace(/^http:\/\//, ""))),
+      h("div", { style: "text-align:center;max-width:100%" },
+        h("div", { class: "hint" }, "Link completo (já com o código)"),
+        h("code", { id: "phonelink", style: "user-select:all;word-break:break-all;font-size:12px" }, p.url)),
+      h("div", { class: "row" },
+        h("button", { class: "btn small", onclick: () => copyText(p.url, "Link copiado.") }, "Copiar link"),
+        h("button", { class: "btn small", onclick: () => copyText((p.code || "").replace("-", ""), "Código copiado.") }, "Copiar código")),
       h("div", { class: "hint", style: "text-align:center" }, "Aponte a câmera do celular para o QR code. Ele vale por 5 minutos e só funciona uma vez; depois aparece um novo. Quem conectou continua conectado até fechar o navegador ou você desconectar."),
       h("div", { class: "row" },
         h("button", { class: "btn small", onclick: () => setPhone({ renew: true }) }, "Gerar novo QR"))));
@@ -830,6 +843,13 @@ function fillPhone(box) {
     kids.push(h("div", { class: "hint" }, "Iniciando…"));
   }
   box.replaceChildren(...kids);
+}
+async function copyText(text, okMsg) {
+  try { await navigator.clipboard.writeText(text); toast(okMsg); return; } catch (_) {}
+  try {  // fallback for pages where the clipboard API is blocked
+    const ta = h("textarea", { style: "position:fixed;opacity:0" }); ta.value = text; document.body.appendChild(ta); ta.select();
+    const ok = document.execCommand("copy"); ta.remove(); toast(ok ? okMsg : "Não consegui copiar; selecione e copie à mão.", !ok);
+  } catch (_) { toast("Não consegui copiar; selecione e copie à mão.", true); }
 }
 async function pollStatusNow() { try { S.status = await api("/api/status"); updateStatus(); } catch (_) {} }
 
@@ -861,7 +881,10 @@ function panelSistema() {
       switchField("Mostrar as novidades na primeira abertura de cada versão", () => !(S.whatsnew && S.whatsnew.hide), async v => {
         try { S.whatsnew = await post("/api/whatsnew", { hide: !v }); toast(v ? "As novidades voltam a aparecer a cada atualização." : "As novidades não aparecem mais."); } catch (e) { toast(e.message, true); }
       }),
-      h("button", { class: "btn small", onclick: () => showWhatsNew(true) }, "Ver novidades desta versão")),
+      h("button", { class: "btn small", onclick: () => showWhatsNew(true) }, "Ver novidades desta versão"),
+      h("div", { class: "hint", style: "margin:10px 0 4px" }, "Ver as novidades de versões anteriores:"),
+      h("div", { class: "row" }, selectField("Versão", ((S.whatsnew && S.whatsnew.history) || []).map(n => [n.version, "v" + n.version + " · " + n.title]), () => S.pastVer || "", v => { S.pastVer = v; }),
+        h("button", { class: "btn small", onclick: () => { const n = ((S.whatsnew && S.whatsnew.history) || []).find(x => x.version === (S.pastVer || ((S.whatsnew.history || [])[0] || {}).version)); if (n) showWhatsNew(true, n); } }, "Abrir"))),
     h("div", { class: "group" }, h("h4", {}, "Programa"),
       h("div", { class: "row" },
         h("button", { class: "btn danger", onclick: async () => { if (confirm(tr("Restaurar o layout e a aparência padrão? Suas imagens enviadas são mantidas."))) { const r = await post("/api/reset", {}); S.layout = r.layout; S.sel = -1; S.page = 0; renderAll(); toast("Padrões restaurados."); } } }, "Restaurar padrões"),
@@ -884,12 +907,13 @@ async function refreshSensors() {
 }
 
 // ------------------------------------------------------------------ what's new pop-up
-function showWhatsNew(manual) {
-  const w = S.whatsnew, n = w && w.notes;
+function showWhatsNew(manual, past) {  // ``past``: notes of an older version picked from the history (closing it changes nothing)
+  const w = S.whatsnew, n = past || (w && w.notes);
   if (!n || document.querySelector(".modal")) { if (manual && !n) toast("Esta versão não tem novidades registradas."); return; }
   const never = h("input", { type: "checkbox", checked: !!w.hide });
   const close = async () => {
     box.remove(); document.removeEventListener("keydown", onKey);
+    if (past) return;
     try { S.whatsnew = await post("/api/whatsnew", { seen: true, hide: never.checked }); } catch (_) {}
     if (S.tab === "sistema") renderPanel();
   };
@@ -900,8 +924,8 @@ function showWhatsNew(manual) {
       h("div", { class: "sub" }, n.title),
       h("ul", {}, n.items.map(t => h("li", {}, t))),
       h("div", { class: "foot" },
-        h("label", { class: "sw" }, never, "Não mostrar novamente"),
-        h("button", { class: "btn primary", onclick: close }, "Entendi"))));
+        past ? h("span") : h("label", { class: "sw" }, never, "Não mostrar novamente"),
+        h("button", { class: "btn primary", onclick: close }, past ? "Fechar" : "Entendi"))));
   document.addEventListener("keydown", onKey);
   document.body.append(box);
 }

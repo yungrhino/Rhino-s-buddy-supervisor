@@ -25,6 +25,7 @@ import json
 import logging
 import secrets
 import socket
+import sys
 import threading
 import time
 from http import cookies
@@ -44,8 +45,22 @@ MAX_SESSIONS = 20
 COOKIE = "rb_s"
 
 
+CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O/1/I: easy to read and to type
+CODE_LENGTH = 8                                      # 32**8 = 40 bits; single use, 5 minutes, and a lock-out on wrong tries
+
+
 def new_secret() -> str:
-    return secrets.token_urlsafe(16)  # 128 bits (pairing code); sessions use 32 bytes
+    """The short pairing code (QR link and typed entry share it). Sessions use 32 random bytes."""
+    return "".join(secrets.choice(CODE_ALPHABET) for _ in range(CODE_LENGTH))
+
+
+def normalize_code(text: str) -> str:
+    """What a person typed -> the canonical code (any case, spaces and dashes ignored)."""
+    return "".join(ch for ch in (text or "").upper() if ch.isalnum())[:32]
+
+
+def pretty_code(code: str) -> str:
+    return f"{code[:4]}-{code[4:]}" if len(code) == CODE_LENGTH else code
 
 
 def lan_ip() -> str | None:
@@ -120,13 +135,27 @@ class Lockout:
 
 class _PhoneServer(ThreadingHTTPServer):
     daemon_threads = True
-    allow_reuse_address = True
+    # On Windows SO_REUSEADDR lets a second program bind a port that is already in use (and receive some connections),
+    # so it must stay off there; elsewhere it only allows a quick restart.
+    allow_reuse_address = sys.platform != "win32"
 
+
+_ENTRY_PAGE = """<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rhino's Buddy Supervisor</title>
+<body style="background:#000;color:#e6e6e6;font:16px system-ui;padding:24px;text-align:center;max-width:420px;margin:0 auto">
+<h2 style="font-size:18px">Conectar ao PC / Connect to the PC</h2>
+<p style="color:#9aa">Digite o código mostrado no painel do PC.<br>Type the code shown on the PC panel.</p>
+<form method="get" action="/p" autocomplete="off">
+<input name="c" autofocus maxlength="12" autocapitalize="characters" autocorrect="off" spellcheck="false" inputmode="text"
+ placeholder="ABCD-2345" style="width:100%;box-sizing:border-box;font:600 28px ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;text-align:center;padding:12px;border-radius:10px;border:1px solid #444;background:#111;color:#fff">
+<button style="margin-top:14px;width:100%;font:600 18px system-ui;padding:12px;border:0;border-radius:10px;background:#4dabf7;color:#000">Conectar / Connect</button>
+</form></body>""".encode("utf-8")
 
 _DENIED_PAGE = (b'<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
                 b'<body style="background:#000;color:#ff8787;font:16px system-ui;padding:24px;text-align:center">'
                 b'<p>Sess\xc3\xa3o inv\xc3\xa1lida ou encerrada. Escaneie o QR code de novo no PC.</p>'
-                b'<p>Invalid or ended session. Scan the QR code on the PC again.</p>')
+                b'<p>Invalid or ended session. Scan the QR code on the PC again.</p>'
+                b'<p><a style="color:#4dabf7" href="/p">C\xc3\xb3digo / Code</a></p>')
 
 EDITOR_CSP = ("default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'")
 VIEWER_CSP = "default-src 'none'; img-src blob:; connect-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'"
@@ -206,7 +235,10 @@ def _make_handler(access: "PhoneAccess"):
                 ip = self._gate(need_session=False)
                 if ip is None:
                     return
-                sid = access.redeem((q.get("c") or [""])[0], ip, self.headers.get("User-Agent") or "")
+                typed = normalize_code((q.get("c") or [""])[0])
+                if not typed:                                    # no code yet: the typing page (not a failed attempt)
+                    return self._send(200, _ENTRY_PAGE, "text/html; charset=utf-8")
+                sid = access.redeem(typed, ip, self.headers.get("User-Agent") or "")
                 if not sid:
                     access.lockout.fail(ip)
                     return self._send(403, _DENIED_PAGE, "text/html; charset=utf-8")
@@ -462,11 +494,13 @@ class PhoneAccess:
 
     def status(self) -> dict:
         out = {"enabled": self.enabled, "running": self.running, "edit": self.edit, "port": self.port, "error": self.error,
-               "ip": self.ip if self.running else "", "url": "", "svg": "", "seconds_left": 0, "pair_seconds": int(PAIR_SECONDS),
+               "ip": self.ip if self.running else "", "url": "", "code": "", "manual_url": "", "svg": "", "seconds_left": 0, "pair_seconds": int(PAIR_SECONDS),
                "devices": self.devices() if self.running else []}
         if self.running:
             code, left = self.pair_code()
             out["url"] = f"http://{self.ip}:{self.port}/p?c={code}"
+            out["code"] = pretty_code(code)
+            out["manual_url"] = f"http://{self.ip}:{self.port}/p"
             out["seconds_left"] = max(0, int(left))
             out["svg"] = qr.to_svg(qr.encode(out["url"]))
         return out
