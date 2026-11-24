@@ -26,6 +26,7 @@ Without building the `.exe`, `Start Rhinos Buddy Supervisor.bat` starts the same
   (Android and iOS, nothing to install). With **Also allow editing the panel from the phone** off (default) you only get the picture of the screen; the **View screen**
   / **Panel** buttons switch between the fullscreen picture (with Rotate and, on Android, Fullscreen) and the panel.
 - **No QR reader?** Under the QR code the panel shows a short **8-character code** (e.g. `ABCD-2345`), the address to type it into and the full link with a **Copy link** button. Same rules as the QR: 5 minutes, single use, locked out after repeated wrong tries.
+- **Friendly name (optional):** *Use the rhinos-buddy.local name in the link* makes the QR open `http://rhinos-buddy.local:PORT` instead of the PC's IP (a tiny built-in mDNS responder answers only for that name, with the PC's LAN address). iPhone resolves it natively, Android usually does; the IP link stays shown as a fallback. Off by default.
 - **Screen view:** the picture turns automatically to the side where it is biggest (**Rotate: auto / off / on**), so portrait and landscape layouts both fill the phone; **Fullscreen** where the browser allows it (not iPhone Safari).
 - **Pairing:** the QR code is valid for **5 minutes** (a countdown is shown) and works **once**; a new one appears right away. Scanning it gives that phone a session that lasts
   until the phone's browser is closed or you press **Disconnect** (the connected devices are listed on the PC). Turning phone access off, or closing the program, disconnects everyone.

@@ -319,11 +319,12 @@ def make_handler(app: App):
                     return self._json(app.state())
                 if u.path == "/api/phone":  # phone access: on/off and "new link" (only from the editor, i.e. this PC)
                     body = json.loads((self._body(1000) or b"{}").decode("utf-8"))
-                    en, ed = body.get("enabled"), body.get("edit")
+                    en, ed, fr = body.get("enabled"), body.get("edit"), body.get("friendly")
                     dc = body.get("disconnect")
                     app.phone.configure(enabled=en if isinstance(en, bool) else None, edit=ed if isinstance(ed, bool) else None,
                                         renew=body.get("renew") is True, disconnect=dc if isinstance(dc, str) else None,
-                                        disconnect_all=body.get("disconnect_all") is True)
+                                        disconnect_all=body.get("disconnect_all") is True,
+                                        friendly=fr if isinstance(fr, bool) else None)
                     return self._json(app.phone_status())
                 if u.path == "/api/notify_test":
                     app.runner.notify_test()

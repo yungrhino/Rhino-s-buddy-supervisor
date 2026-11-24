@@ -33,7 +33,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import appdata, qr
+from . import appdata, mdns, qr
 
 log = logging.getLogger("rhinos_buddy.phone")
 
@@ -368,7 +368,9 @@ class PhoneAccess:
         self._sessions: dict[str, _Session] = {}
         self._pair_code, self._pair_expires = "", 0.0
         prefs = appdata.load_prefs(self.home)
-        self.enabled, self.edit = prefs["phone_enabled"], prefs["phone_edit"]
+        self.enabled, self.edit, self.friendly = prefs["phone_enabled"], prefs["phone_edit"], prefs["phone_friendly"]
+        self.responder: mdns.Responder | None = None
+        self.friendly_error = ""
 
     # -- pairing and sessions
     def _fresh_pair(self) -> tuple[str, float]:
@@ -432,7 +434,7 @@ class PhoneAccess:
         if not h.endswith(f":{self.port}"):
             return False
         name = h[: -len(f":{self.port}")]
-        return name in ("127.0.0.1", "localhost") or name == self.ip
+        return name in ("127.0.0.1", "localhost") or name == self.ip or (self.friendly_ok and name == mdns.NAME)
 
     def page(self) -> bytes:
         if self._page is not None:
@@ -452,7 +454,7 @@ class PhoneAccess:
     # -- lifecycle
     def _save(self) -> None:
         prefs = appdata.load_prefs(self.home)
-        prefs["phone_enabled"], prefs["phone_edit"] = self.enabled, self.edit
+        prefs["phone_enabled"], prefs["phone_edit"], prefs["phone_friendly"] = self.enabled, self.edit, self.friendly
         appdata.save_prefs(self.home, prefs)
 
     def start(self) -> bool:
@@ -470,12 +472,34 @@ class PhoneAccess:
             log.warning("phone access could not start: %s", e)
             return False
         self.ip = ip
+        self._start_name()
         self.thread = threading.Thread(target=self.server.serve_forever, name="phone-access", daemon=True)
         self.thread.start()
         log.info("Phone access listening on %s:%d", ip, self.port)
         return True
 
+    def _start_name(self) -> None:
+        """The friendly ``rhinos-buddy.local`` name (optional); on failure the IP link keeps working."""
+        self._stop_name()
+        self.friendly_error = ""
+        if self.friendly and self.ip:
+            r = mdns.Responder(self.ip)
+            if r.start():
+                self.responder = r
+            else:
+                self.friendly_error = r.error or "?"
+
+    def _stop_name(self) -> None:
+        r, self.responder = self.responder, None
+        if r is not None:
+            r.stop()
+
+    @property
+    def friendly_ok(self) -> bool:
+        return self.responder is not None and self.responder.running
+
     def stop(self) -> None:
+        self._stop_name()
         srv, self.server = self.server, None
         self.disconnect_all()                    # sessions never outlive the server
         if srv is not None:
@@ -484,9 +508,11 @@ class PhoneAccess:
             log.info("Phone access stopped")
 
     def configure(self, enabled: bool | None = None, edit: bool | None = None, renew: bool = False,
-                  disconnect: str | None = None, disconnect_all: bool = False) -> None:
+                  disconnect: str | None = None, disconnect_all: bool = False, friendly: bool | None = None) -> None:
         if edit is not None:
             self.edit = edit
+        if friendly is not None:
+            self.friendly = friendly
         if enabled is not None:
             self.enabled = enabled
         self._save()
@@ -499,6 +525,8 @@ class PhoneAccess:
         if self.enabled:
             if self.server is None:
                 self.start()
+            elif friendly is not None:
+                self._start_name()
         else:
             self.stop()
             self.error = ""
@@ -512,19 +540,25 @@ class PhoneAccess:
     def running(self) -> bool:
         return self.server is not None
 
+    def host(self) -> str:
+        """What the phone is told to open: the friendly name when it is on and working, else the IP."""
+        return mdns.NAME if self.friendly_ok else self.ip
+
     def url(self) -> str:
         """The address inside the QR code (one-time pairing link)."""
-        return f"http://{self.ip}:{self.port}/p?c={self.pair_code()[0]}" if self.running else ""
+        return f"http://{self.host()}:{self.port}/p?c={self.pair_code()[0]}" if self.running else ""
 
     def status(self) -> dict:
         out = {"enabled": self.enabled, "running": self.running, "edit": self.edit, "port": self.port, "error": self.error,
-               "ip": self.ip if self.running else "", "url": "", "code": "", "manual_url": "", "svg": "", "seconds_left": 0, "pair_seconds": int(PAIR_SECONDS),
+               "ip": self.ip if self.running else "", "url": "", "code": "", "manual_url": "", "ip_url": "", "svg": "",
+               "friendly": self.friendly, "friendly_ok": self.friendly_ok, "friendly_name": mdns.NAME, "friendly_error": self.friendly_error, "seconds_left": 0, "pair_seconds": int(PAIR_SECONDS),
                "devices": self.devices() if self.running else []}
         if self.running:
             code, left = self.pair_code()
-            out["url"] = f"http://{self.ip}:{self.port}/p?c={code}"
+            out["url"] = f"http://{self.host()}:{self.port}/p?c={code}"
             out["code"] = pretty_code(code)
-            out["manual_url"] = f"http://{self.ip}:{self.port}/p"
+            out["manual_url"] = f"http://{self.host()}:{self.port}/p"
+            out["ip_url"] = f"http://{self.ip}:{self.port}/p?c={code}"
             out["seconds_left"] = max(0, int(left))
             out["svg"] = qr.to_svg(qr.encode(out["url"]))
         return out

@@ -153,3 +153,54 @@ def test_history_lists_every_version_newest_first_in_both_languages():
 def test_whatsnew_endpoint_carries_the_history(tmp_path):
     from rhinos_buddy.app import App  # noqa: F401  (import check: the state builds it through App.whatsnew)
     assert release_notes.history("pt")[0]["version"] == max(release_notes.NOTES, key=lambda v: tuple(int(x) for x in v.split(".")))
+
+
+# ---------------------------------------------------------------- friendly name (mDNS), 1.8.0
+import socket
+import struct
+
+from rhinos_buddy import mdns
+
+
+def _query(name: str, qtype: int = 1, qclass: int = 1, ident: int = 0) -> bytes:
+    labels = b"".join(bytes([len(p)]) + p.encode() for p in name.split(".")) + b"\x00"
+    return struct.pack("!HHHHHH", ident, 0, 1, 0, 0, 0) + labels + struct.pack("!HH", qtype, qclass)
+
+
+def test_mdns_answers_only_for_its_own_name_with_the_lan_address():
+    r = mdns.build_answer(_query("Rhinos-Buddy.local"), mdns.NAME, "192.168.1.20")
+    assert r and r[:2] == b"\x00\x00" and r[2:4] == b"\x84\x00" and r.endswith(socket.inet_aton("192.168.1.20"))
+    assert struct.unpack("!H", r[6:8])[0] == 1                                  # one answer: the A record
+    assert mdns.build_answer(_query("other-pc.local"), mdns.NAME, "192.168.1.20") is None
+    assert mdns.build_answer(_query("rhinos-buddy.local", qtype=16), mdns.NAME, "192.168.1.20") is None   # TXT: nothing to say
+    assert mdns.build_answer(_query("rhinos-buddy.local", qclass=0x8001), mdns.NAME, "10.0.0.5")           # QU bit is fine
+
+
+def test_mdns_says_no_aaaa_and_echoes_the_id_for_legacy_clients():
+    r = mdns.build_answer(_query("rhinos-buddy.local", qtype=28, ident=0x1234), mdns.NAME, "192.168.1.20", legacy=True)
+    assert r[:2] == b"\x12\x34" and struct.unpack("!H", r[6:8])[0] == 1 and struct.pack("!H", mdns.TYPE_NSEC) in r
+
+
+def test_mdns_ignores_garbage_and_responses():
+    for junk in (b"", b"\x00" * 5, b"\xff" * 40, _query("rhinos-buddy.local")[:20], b"\x00\x00\x84\x00" + b"\x00" * 8):
+        assert mdns.build_answer(junk, mdns.NAME, "192.168.1.20") is None
+
+
+def test_friendly_name_is_optional_and_falls_back_to_the_ip(tmp_path):
+    from rhinos_buddy import appdata, phone
+    from tests.test_phone import free_port
+    acc = phone.PhoneAccess(tmp_path, lambda: b"", page=b"x", main_port=free_port(), bind_ip="127.0.0.1")
+    try:
+        assert acc.friendly is False and acc.start()
+        st = acc.status()
+        assert "127.0.0.1" in st["url"] and st["friendly_ok"] is False
+        assert acc.host_ok(f"rhinos-buddy.local:{acc.port}") is False            # off: that name is not accepted
+        acc.friendly = True
+        acc.responder = type("R", (), {"running": True, "stop": lambda s: None})()   # pretend the responder works
+        st = acc.status()
+        assert st["url"].startswith(f"http://rhinos-buddy.local:{acc.port}/p?c=") and st["ip_url"].startswith("http://127.0.0.1:")
+        assert acc.host_ok(f"rhinos-buddy.local:{acc.port}") and not acc.host_ok(f"evil.local:{acc.port}")
+        acc.configure(enabled=True, friendly=False)
+        assert appdata.load_prefs(tmp_path)["phone_friendly"] is False and "127.0.0.1" in acc.status()["url"]
+    finally:
+        acc.stop()

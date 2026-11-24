@@ -7,6 +7,19 @@ Add an entry here with every version: a version without notes simply shows no po
 from __future__ import annotations
 
 NOTES: dict[str, dict] = {
+    "1.8.0": {
+        "title": "Friendly phone link name",
+        "items": [
+            "Novo (opcional): em Sistema → Acesso pelo celular, a chave “Usar o nome rhinos-buddy.local no link (em vez do IP)” faz o QR e o link abrirem no celular como http://rhinos-buddy.local:PORTA, sem mostrar o IP do PC no navegador. Vem desligada.",
+            "O iPhone abre esse nome direto; no Android costuma funcionar, mas se o celular não abrir, o link com IP aparece logo abaixo e continua valendo. Se o nome não puder ser ativado, o programa avisa e usa o IP.",
+            "Segurança: o programa só responde por esse nome e só com o endereço do PC na rede local; o link continua exigindo o código de uso único, e o nome só é aceito enquanto a opção está ligada.",
+        ],
+        "items_en": [
+            "New (optional): in System → Phone access, the “Use the rhinos-buddy.local name in the link (instead of the IP)” switch makes the QR and link open on the phone as http://rhinos-buddy.local:PORT, without showing the PC's IP in the browser. It is off by default.",
+            "iPhones open that name directly; Android usually does too, but if the phone cannot open it, the IP link is shown right below and still works. If the name cannot be turned on, the program says so and uses the IP.",
+            "Security: the program answers only for that name and only with the PC's local-network address; the link still needs the single-use code, and the name is accepted only while the option is on.",
+        ],
+    },
     "1.7.1": {
         "title": "Windows connection fix",
         "items": [

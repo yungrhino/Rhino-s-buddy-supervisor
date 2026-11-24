@@ -1,12 +1,14 @@
-# Rhino's Buddy Supervisor v1.7.1 — Windows connection fix
+# Rhino's Buddy Supervisor v1.8.0 — Friendly phone link name
 
 Open-source (MIT) replacement for the Turing Smart Screen 3.5" software: put anything you want on the secondary screen
 (hardware stats, clock, music, notifications, images, disk usage) with a visual editor in your browser.
 
 ## What's new
 
-- **Windows connection fix.** Both local servers (editor and phone) now close each connection gracefully (FIN, then wait for the client to finish reading). Before, Windows could reset the connection while a reply was in flight (WinError 10053), which made 3 tests fail on GitHub Actions with Python 3.11.
-- Everything from 1.7.0 (storage card, short pairing code, auto-rotating phone view, what's-new history) is unchanged.
+- **Friendly link name (optional, off by default).** *System → Phone access → Use the rhinos-buddy.local name in the link (instead of the IP)* makes the QR code, the typed address and the link use
+  `http://rhinos-buddy.local:PORT`, so the PC's IP no longer shows in the phone's browser. A small built-in mDNS responder (standard library only) answers **only** for that name, **only** with the PC's private address.
+  iPhone resolves `.local` names natively; Android usually does. The IP link is shown under it as a fallback, and if the name cannot be started the program says why and keeps using the IP.
+- The name is accepted by the phone server only while the option is on; pairing still needs the single-use code. Note that two PCs running this option on the same network would answer to the same name.
 
 ## Good to know
 
