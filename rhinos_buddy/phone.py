@@ -133,6 +133,21 @@ class Lockout:
             self._fails.pop(ip, None)
 
 
+def graceful_finish(handler) -> None:
+    """Close a connection the polite way: flush, send FIN, then wait briefly for the client to finish reading.
+    Closing with unread bytes still in the socket makes Windows reset the connection, and the client then loses the
+    answer it was about to read (WinError 10053)."""
+    try:
+        handler.wfile.flush()
+        conn = handler.connection
+        conn.shutdown(socket.SHUT_WR)
+        conn.settimeout(0.5)
+        while conn.recv(4096):
+            pass
+    except (OSError, ValueError):
+        pass
+
+
 class _PhoneServer(ThreadingHTTPServer):
     daemon_threads = True
     # On Windows SO_REUSEADDR lets a second program bind a port that is already in use (and receive some connections),
@@ -168,6 +183,10 @@ def _make_handler(access: "PhoneAccess"):
 
         def log_message(self, *a):
             pass
+
+        def finish(self):
+            graceful_finish(self)
+            super().finish()
 
         def _send(self, code: int, body: bytes, ctype: str, extra: dict | None = None):
             self.send_response(code)
@@ -282,6 +301,15 @@ def _make_handler(access: "PhoneAccess"):
             return self._text(404, "not found")
 
         def do_POST(self):  # noqa: N802
+            try:                                   # read the body first: answering with it unread resets the connection on Windows
+                n = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                n = -1
+            pre = None
+            if 0 <= n <= 2_000_000:
+                pre = self.rfile.read(n) if n else b""
+            else:
+                self.close_connection = True
             ses = self._gate()
             if ses is None:
                 return
@@ -290,13 +318,9 @@ def _make_handler(access: "PhoneAccess"):
             if not access.edit_allowed() or access.api is None:
                 return self._text(403, "editing from the phone is off")
             u = urlparse(self.path)
-            try:
-                n = int(self.headers.get("Content-Length") or 0)
-            except ValueError:
-                n = -1
-            if n < 0 or n > 2_000_000:
+            if pre is None:
                 return self._json({"error": "Corpo inválido ou grande demais"}, 413)
-            raw = self.rfile.read(n) if n else b""
+            raw = pre
             try:
                 body = json.loads(raw.decode("utf-8") or "{}")
             except ValueError:

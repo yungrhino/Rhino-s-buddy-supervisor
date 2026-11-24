@@ -4,6 +4,7 @@ Cada versão tem suas notas completas em `docs/releases/vX.Y.Z.md` (texto pronto
 
 | Versão | Título | Resumo |
 |---|---|---|
+| 1.7.1 | Windows connection fix | servers close connections gracefully (fixes WinError 10053 test failures on Windows/Python 3.11) |
 | 1.7.0 | Storage card and easier pairing | storage (disk) card with optional figures, short pairing code + link/copy under the QR, auto-rotating phone view, what's-new history, Windows port fix |
 | 1.6.0 | Phone panel and volume | full panel on the phone (QR pairing: 5-min single-use code + sessions, optional editing, PC<->phone sync), PC volume % in the music card |
 | 1.5.0 | Stable repository checks | repository checks tolerate leftover old uninstaller/notes after extracting a zip over an old checkout (CI fix) |

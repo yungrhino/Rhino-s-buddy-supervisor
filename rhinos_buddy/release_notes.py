@@ -7,6 +7,15 @@ Add an entry here with every version: a version without notes simply shows no po
 from __future__ import annotations
 
 NOTES: dict[str, dict] = {
+    "1.7.1": {
+        "title": "Windows connection fix",
+        "items": [
+            "Correção: no Windows, os servidores do editor e do celular às vezes derrubavam a conexão antes de o navegador ler a resposta (erro 10053), o que fazia 3 testes automáticos falharem no GitHub com Python 3.11. Agora a conexão é encerrada com calma.",
+        ],
+        "items_en": [
+            "Fix: on Windows, the editor and phone servers sometimes dropped the connection before the browser read the reply (error 10053), which made 3 automatic tests fail on GitHub with Python 3.11. Connections are now closed gracefully.",
+        ],
+    },
     "1.7.0": {
         "title": "Storage card and easier pairing",
         "items": [

@@ -1,18 +1,12 @@
-# Rhino's Buddy Supervisor v1.7.0 — Storage card and easier pairing
+# Rhino's Buddy Supervisor v1.7.1 — Windows connection fix
 
 Open-source (MIT) replacement for the Turing Smart Screen 3.5" software: put anything you want on the secondary screen
 (hardware stats, clock, music, notifications, images, disk usage) with a visual editor in your browser.
 
 ## What's new
 
-- **Storage card.** Disk usage as a card for one drive or a list of all drives. Everything is optional: which drive, used %, used / total, free space, temperature
-  (LibreHardwareMonitor), read / write speed, bar or ring, and whether removable drives are listed.
-- **Short pairing code and link under the QR.** Besides the QR code, the panel shows an 8-character code (`ABCD-2345`), the address to type it into and the full link with **Copy link** / **Copy code**,
-  for phones that cannot scan. The same short code is inside the QR, which makes the QR smaller and easier to read. Same rules: 5 minutes, single use, lock-out after repeated wrong tries.
-- **Phone screen view.** The picture turns automatically to the orientation where it is biggest (portrait and landscape layouts both fill the phone). **Rotate: auto / off / on**.
-  Fullscreen locks the orientation to the picture's shape where the browser allows it (Android); iPhone Safari has no page fullscreen.
-- **What's new history.** *System → What's new* lists every earlier version and opens its notes.
-- **CI / Windows.** The phone server no longer sets `SO_REUSEADDR` on Windows (it let a second program share the port); the workflow runs pytest with `-rfE --tb=short` and `PYTHONUTF8=1`.
+- **Windows connection fix.** Both local servers (editor and phone) now close each connection gracefully (FIN, then wait for the client to finish reading). Before, Windows could reset the connection while a reply was in flight (WinError 10053), which made 3 tests fail on GitHub Actions with Python 3.11.
+- Everything from 1.7.0 (storage card, short pairing code, auto-rotating phone view, what's-new history) is unchanged.
 
 ## Good to know
 

@@ -178,6 +178,10 @@ def make_handler(app: App):
         def log_message(self, *a):  # silence the default stderr logging
             pass
 
+        def finish(self):
+            phone_mod.graceful_finish(self)
+            super().finish()
+
         # -- helpers
         def _send(self, code, body: bytes, ctype="application/json; charset=utf-8", extra=None):
             self.send_response(code)
@@ -199,14 +203,24 @@ def make_handler(app: App):
         def _host_ok(self) -> bool:
             return (self.headers.get("Host") or "") in allowed_hosts
 
-        def _body(self, limit: int) -> bytes | None:
+        def _preread(self) -> None:
+            """Read the request body before answering anything. Replying (e.g. 403) while the body is still unread makes
+            Windows reset the connection, and the client never sees the answer."""
+            self._pre = None
             try:
                 n = int(self.headers.get("Content-Length") or 0)
             except ValueError:
+                n = -1
+            if n < 0 or n > appdata.MAX_MEDIA_BYTES + 1024:
+                self.close_connection = True  # absurd size: answer and hang up instead of swallowing it
+                return
+            self._pre = self.rfile.read(n) if n else b""
+
+        def _body(self, limit: int) -> bytes | None:
+            pre = getattr(self, "_pre", None)
+            if pre is None or len(pre) > limit:
                 return None
-            if n < 0 or n > limit:
-                return None
-            return self.rfile.read(n)
+            return pre
 
         # -- GET
         def do_GET(self):  # noqa: N802
@@ -256,6 +270,7 @@ def make_handler(app: App):
 
         # -- POST
         def do_POST(self):  # noqa: N802
+            self._preread()
             if not self._host_ok():
                 return self._error(403, "Host não permitido")
             if self.headers.get("X-Rhinos-Buddy") != "1":
