@@ -4,7 +4,8 @@ Cada versão tem suas notas completas em `docs/releases/vX.Y.Z.md` (texto pronto
 
 | Versão | Título | Resumo |
 |---|---|---|
-| 1.8.0 | Friendly phone link name | optional rhinos-buddy.local name (built-in mDNS responder) instead of the IP in the phone link |
+| 1.8.1 | Friendly name withdrawn | the optional rhinos-buddy.local name of 1.8.0 was removed (links did not open); IP-only links as before |
+| 1.8.0 | Friendly phone link name | (withdrawn in 1.8.1) optional rhinos-buddy.local name via a built-in mDNS responder |
 | 1.7.1 | Windows connection fix | servers close connections gracefully (fixes WinError 10053 test failures on Windows/Python 3.11) |
 | 1.7.0 | Storage card and easier pairing | storage (disk) card with optional figures, short pairing code + link/copy under the QR, auto-rotating phone view, what's-new history, Windows port fix |
 | 1.6.0 | Phone panel and volume | full panel on the phone (QR pairing: 5-min single-use code + sessions, optional editing, PC<->phone sync), PC volume % in the music card |

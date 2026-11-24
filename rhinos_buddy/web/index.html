@@ -800,16 +800,14 @@ async function setPhone(body) {
 function fillPhone(box) {
   const p = S.phone || { enabled: false, running: false };
   if (p.running) phoneLeftAt = Date.now() + (p.seconds_left || 0) * 1000;
-  const sig = JSON.stringify([p.enabled, p.running, p.edit, p.friendly, p.friendly_ok, p.friendly_error, p.error, p.url, (p.devices || []).map(d => d.id + d.idle)]);
+  const sig = JSON.stringify([p.enabled, p.running, p.edit, p.error, p.url, (p.devices || []).map(d => d.id + d.idle)]);
   if (box.dataset.sig === sig) return;  // nothing changed: leave the QR and the buttons alone (no flicker)
   box.dataset.sig = sig;
   const kids = [
     h("div", { class: "hint", style: "margin-bottom:8px" }, "Veja a tela do Buddy no celular (e, se quiser, edite o painel por lá). O celular precisa estar no mesmo Wi-Fi. Fica desligado até você ligar."),
     switchField("Permitir acesso pelo celular", () => p.enabled, v => setPhone({ enabled: v })),
     switchField("Permitir também editar o painel pelo celular", () => p.edit, v => setPhone({ edit: v }), !p.enabled),
-    switchField("Usar o nome rhinos-buddy.local no link (em vez do IP)", () => p.friendly, v => setPhone({ friendly: v }), !p.enabled),
   ];
-  if (p.enabled && p.friendly && p.friendly_error) kids.push(h("div", { class: "note warn" }, tf("Não consegui ativar o nome ({e}); o link com IP continua funcionando.", { e: p.friendly_error })));
   if (p.error) kids.push(h("div", { class: "note warn" }, p.error));
   if (p.running && p.url) {
     kids.push(h("div", { class: "card", style: "padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px" },
@@ -827,9 +825,6 @@ function fillPhone(box) {
       h("div", { style: "text-align:center;max-width:100%" },
         h("div", { class: "hint" }, "Link completo (já com o código)"),
         h("code", { id: "phonelink", style: "user-select:all;word-break:break-all;font-size:12px" }, p.url)),
-      p.friendly_ok ? h("div", { style: "text-align:center;max-width:100%" },
-        h("div", { class: "hint" }, "Se o celular não abrir o nome, use o link com IP"),
-        h("code", { style: "user-select:all;word-break:break-all;font-size:12px" }, p.ip_url)) : null,
       h("div", { class: "row" },
         h("button", { class: "btn small", onclick: () => copyText(p.url, "Link copiado.") }, "Copiar link"),
         h("button", { class: "btn small", onclick: () => copyText((p.code || "").replace("-", ""), "Código copiado.") }, "Copiar código")),

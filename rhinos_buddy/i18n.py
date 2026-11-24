@@ -239,9 +239,6 @@ EN: dict[str, str] = {
     "Aponte a câmera do celular para o QR code. Ele vale por 5 minutos e só funciona uma vez; depois aparece um novo. Quem conectou continua conectado até fechar o navegador ou você desconectar.":
         "Point the phone camera at the QR code. It is valid for 5 minutes and works only once; then a new one appears. Whoever connected stays connected until they close the browser or you disconnect them.",
     "Gerar novo QR": "Generate new QR",
-    "Usar o nome rhinos-buddy.local no link (em vez do IP)": "Use the rhinos-buddy.local name in the link (instead of the IP)",
-    "Não consegui ativar o nome ({e}); o link com IP continua funcionando.": "Could not turn the name on ({e}); the IP link still works.",
-    "Se o celular não abrir o nome, use o link com IP": "If the phone cannot open the name, use the IP link",
     "Ver as novidades de versões anteriores:": "See what was new in earlier versions:",
     "Versão": "Version",
     "Abrir": "Open",

@@ -1,14 +1,12 @@
-# Rhino's Buddy Supervisor v1.8.0 — Friendly phone link name
+# Rhino's Buddy Supervisor v1.8.1 — Friendly name withdrawn
 
 Open-source (MIT) replacement for the Turing Smart Screen 3.5" software: put anything you want on the secondary screen
 (hardware stats, clock, music, notifications, images, disk usage) with a visual editor in your browser.
 
 ## What's new
 
-- **Friendly link name (optional, off by default).** *System → Phone access → Use the rhinos-buddy.local name in the link (instead of the IP)* makes the QR code, the typed address and the link use
-  `http://rhinos-buddy.local:PORT`, so the PC's IP no longer shows in the phone's browser. A small built-in mDNS responder (standard library only) answers **only** for that name, **only** with the PC's private address.
-  iPhone resolves `.local` names natively; Android usually does. The IP link is shown under it as a fallback, and if the name cannot be started the program says why and keeps using the IP.
-- The name is accepted by the phone server only while the option is on; pairing still needs the single-use code. Note that two PCs running this option on the same network would answer to the same name.
+- **Removed the `rhinos-buddy.local` name (added in 1.8.0).** Links using it did not open on phones, so the QR code, the typed address and the link use the PC's private IP only, as in 1.7.1.
+  Everything else from 1.7.x (storage card, short pairing code, auto-rotating phone view, what's-new history, Windows connection fix) is unchanged.
 
 ## Good to know
 

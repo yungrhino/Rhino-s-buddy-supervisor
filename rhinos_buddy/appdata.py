@@ -118,8 +118,7 @@ def load_prefs(home: Path) -> dict:
             "lang": raw.get("lang") if raw.get("lang") in ("pt", "en") else "pt",
             "lang_chosen": raw.get("lang_chosen") is True,
             "phone_enabled": raw.get("phone_enabled") is True,
-            "phone_edit": raw.get("phone_edit") is True,
-            "phone_friendly": raw.get("phone_friendly") is True}
+            "phone_edit": raw.get("phone_edit") is True}
 
 
 def save_prefs(home: Path, prefs: dict) -> dict:
@@ -127,8 +126,7 @@ def save_prefs(home: Path, prefs: dict) -> dict:
              "lang": prefs.get("lang") if prefs.get("lang") in ("pt", "en") else "pt",
              "lang_chosen": prefs.get("lang_chosen") is True,
              "phone_enabled": prefs.get("phone_enabled") is True,
-             "phone_edit": prefs.get("phone_edit") is True,
-             "phone_friendly": prefs.get("phone_friendly") is True}
+             "phone_edit": prefs.get("phone_edit") is True}
     f = Path(home) / PREFS_FILE
     tmp = f.with_suffix(".tmp")
     tmp.write_text(json.dumps(clean, ensure_ascii=False, indent=2), "utf-8")
